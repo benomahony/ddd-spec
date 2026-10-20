@@ -5,7 +5,9 @@ contexts:
     purpose: Control the full committed cost of an event.
     uses:
       expenses: { model: translate, contracts: [ExpenseRejected] }
+    aggregates:
+      event-budget: { emits: [BudgetExceeded] }
   expenses:
     purpose: Approve and reimburse what employees spend.
     provides:
-      ExpenseApproved: { kind: event, published: true }
+      ExpenseApproved: { kind: event, published: true, version: "1" }

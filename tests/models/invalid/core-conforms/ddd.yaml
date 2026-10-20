@@ -10,4 +10,4 @@ contexts:
     purpose: Approve and reimburse what employees spend.
     classification: { domain: generic }
     provides:
-      ExpenseApproved: { kind: event, published: true }
+      ExpenseApproved: { kind: event, published: true, version: "1" }

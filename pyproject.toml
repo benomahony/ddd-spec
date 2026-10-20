@@ -10,12 +10,13 @@ license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "jsonschema>=4.26.0",
+    "rfc3986-validator>=0.1.1",
     "ruamel-yaml>=0.19.1",
     "typer>=0.27.3",
 ]
 
 [project.scripts]
-ddd = "ddd_spec.cli:app"
+ddd-spec = "ddd_spec.cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -25,3 +26,6 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.hatch.build.targets.wheel.force-include]
+"schema" = "ddd_spec/schema"

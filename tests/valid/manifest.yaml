@@ -1,8 +1,21 @@
 ddd_spec_version: "0.1"
 id: acme.events
 name: Acme Events
+imports:
+  acme.expenses: ../expenses/ddd.yaml
+  acme.travel: https://example.com/acme/travel/ddd.yaml
 contexts:
   budgeting: domains/budgeting.yaml
-  expenses:
-    purpose: Approve and reimburse what employees spend.
+  payments:
+    purpose: Take card payments for us.
+    external: true
+    provides:
+      charge.succeeded:
+        kind: event
+        published: true
+        version: "2024-06-20"
+implements:
+  acme.expenses/claims:
+    code: [services/claims-worker/**]
+    x-deployed-as: claims-worker
 x-team-channel: "#events"

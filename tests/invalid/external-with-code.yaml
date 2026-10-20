@@ -1,0 +1,3 @@
+purpose: Take card payments for us.
+external: true
+code: [src/payments/**]

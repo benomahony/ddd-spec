@@ -1,24 +1,44 @@
 import re
+import subprocess
 from collections.abc import Iterator
+from functools import cache
 from pathlib import Path
 
 from ddd_spec.load import Context, Finding, Manifest
 
+COMMENT = ("#", "//", "/*", "*", "--", ";")
+DEFINITION = r"\b(?:class|struct|enum|trait|interface|type|record|object|module|impl|def|fn|func|fun|function|sub|proc|const|let|var|val|static)\s+(?:\([^)]*\)\s*)?"
+SIGNATURE = r"\s*\([^;{}]*\)\s*(?:\{|=>|throws\b|:|->)"
+ASSIGNED = r"\s*[:=]\s*(?:\(|function\b|async\b|lambda\b)"
 
-def contexts_of(manifests: list[Manifest]) -> dict[str, Context]:
-    return {context.id: context for manifest in manifests for context in manifest.contexts}
+
+class Landscape:
+    def __init__(self, manifests: list[Manifest]) -> None:
+        self.manifests = {manifest.id: manifest for manifest in reversed(manifests)}
+        self.contexts = {context.id: context for manifest in manifests for context in manifest.contexts}
+
+    def lookup(self, context: Context, reference: str, *keys: str | int) -> tuple[Context | None, list[Finding]]:
+        target = context.ref(reference)
+        manifest_id = target.partition("/")[0]
+        if not self.manifests[context.manifest].declares(manifest_id):
+            return None, [context.finding("unknown-manifest", f"{context.manifest} doesn't import a manifest called '{manifest_id}'; add it to imports, or correct the id", *keys)]
+        if manifest_id not in self.manifests:
+            return None, []
+        if target not in self.contexts:
+            return None, [context.finding("unknown-context", f"{manifest_id} has no context called '{target.partition('/')[2]}'; check the spelling, or add it to that manifest", *keys)]
+        return self.contexts[target], []
 
 
-def known(reference: str, manifests: list[Manifest]) -> bool:
-    return reference.partition("/")[0] in {manifest.id for manifest in manifests}
+def deprecated(context: Context, what: str, *keys: str | int) -> Finding:
+    return context.finding("deprecated-reference", f"{what} is deprecated; move to what replaces it", *keys)
 
 
 def check_model(manifests: list[Manifest]) -> list[Finding]:
-    findings = duplicate_ids(manifests)
-    contexts = contexts_of(manifests)
-    for context in contexts.values():
-        findings += references(context, contexts, manifests) + agreements(context, contexts) + invariants(context)
-    return findings + cycles(contexts)
+    landscape = Landscape(manifests)
+    findings = duplicate_ids(manifests) + imports(manifests) + implements(manifests, landscape)
+    for context in landscape.contexts.values():
+        findings += references(context, landscape) + aggregates(context) + agreements(context, landscape) + invariants(context)
+    return findings + cycles(landscape.contexts)
 
 
 def duplicate_ids(manifests: list[Manifest]) -> list[Finding]:
@@ -26,43 +46,67 @@ def duplicate_ids(manifests: list[Manifest]) -> list[Finding]:
     findings = []
     for manifest in manifests:
         if manifest.id in seen:
-            findings.append(manifest.document.finding("duplicate-id", f"'{manifest.id}' is already the id of {seen[manifest.id].document.path}; give each manifest its own id", "id"))
+            findings.append(manifest.document.finding("duplicate-id", f"'{manifest.id}' is already the id of {seen[manifest.id].location}; give each manifest its own id", "id"))
         seen.setdefault(manifest.id, manifest)
     return findings
 
 
-def unknown_context(context: Context, reference: str, *keys: str | int) -> Finding:
-    return context.finding("unknown-context", f"{context.ref(reference).partition('/')[0]} has no context called '{context.ref(reference).partition('/')[2]}'; check the spelling, or add it to that manifest", *keys)
+def imports(manifests: list[Manifest]) -> list[Finding]:
+    findings = []
+    for manifest in manifests:
+        for key, loaded in manifest.imported.items():
+            if loaded is not None and loaded != key:
+                findings.append(manifest.document.finding("import-mismatch", f"the manifest imported as '{key}' has the id '{loaded}'; import it under its own id", "imports", key))
+    return findings
 
 
-def references(context: Context, contexts: dict[str, Context], manifests: list[Manifest]) -> list[Finding]:
+def implements(manifests: list[Manifest], landscape: Landscape) -> list[Finding]:
+    findings = []
+    for manifest in manifests:
+        for target in manifest.document.data.get("implements", {}):
+            manifest_id = target.partition("/")[0]
+            if not manifest.declares(manifest_id):
+                findings.append(manifest.document.finding("unknown-manifest", f"{manifest.id} doesn't import a manifest called '{manifest_id}'; add it to imports, or correct the id", "implements", target))
+            elif manifest_id in landscape.manifests and target not in landscape.contexts:
+                findings.append(manifest.document.finding("unknown-context", f"{manifest_id} has no context called '{target.partition('/')[2]}'; check the spelling, or add it to that manifest", "implements", target))
+    return findings
+
+
+def references(context: Context, landscape: Landscape) -> list[Finding]:
     findings = []
     for field in ("customers", "partners"):
         for index, reference in enumerate(context.data.get(field, [])):
-            if known(context.ref(reference), manifests) and context.ref(reference) not in contexts:
-                findings.append(unknown_context(context, reference, field, index))
+            customer, problems = landscape.lookup(context, reference, field, index)
+            findings += problems
+            if field == "customers" and customer is not None and context.id not in map(customer.ref, customer.data.get("uses", {})):
+                findings.append(context.finding("customer-without-use", f"{customer.id} doesn't use any contract of {context.id}; remove it from customers, or record what it uses", field, index))
     for term, entry in context.data.get("language", {}).items():
         if not isinstance(entry, dict) or "from" not in entry:
             continue
         reference, _, name = entry["from"].partition("#")
-        source = contexts.get(context.ref(reference))
-        if source is None and known(context.ref(reference), manifests):
-            findings.append(unknown_context(context, reference, "language", term, "from"))
-        elif source is not None and name not in source.data.get("language", {}):
-            findings.append(context.finding("unknown-term", f"'{name}' is not a term in {source.id}'s language; add it there, or translate from a term it defines", "language", term, "from"))
-    for reference, use in context.data.get("uses", {}).items():
-        provider = contexts.get(context.ref(reference))
-        if provider is None:
-            if known(context.ref(reference), manifests):
-                findings.append(unknown_context(context, reference, "uses", reference))
+        source, problems = landscape.lookup(context, reference, "language", term, "from")
+        findings += problems
+        if source is None:
             continue
+        theirs = source.data.get("language", {}).get(name)
+        if theirs is None:
+            findings.append(context.finding("unknown-term", f"'{name}' is not a term in {source.id}'s language; add it there, or translate from a term it defines", "language", term, "from"))
+        elif isinstance(theirs, dict) and theirs.get("status") == "deprecated":
+            findings.append(deprecated(context, f"{source.id}'s term '{name}'", "language", term, "from"))
+    for reference, use in context.data.get("uses", {}).items():
+        provider, problems = landscape.lookup(context, reference, "uses", reference)
+        findings += problems
+        if provider is None:
+            continue
+        if provider.data.get("status") == "deprecated":
+            findings.append(deprecated(context, provider.id, "uses", reference))
         provided = provider.data.get("provides", {})
         for index, name in enumerate(use.get("contracts", [])):
             contract = provided.get(name)
             if contract is None:
                 findings.append(context.finding("unknown-contract", f"{provider.id} doesn't provide {name}; add it to its provides, or correct the name", "uses", reference, "contracts", index))
             elif contract.get("status") == "deprecated":
-                findings.append(context.finding("deprecated-contract", f"{provider.id} has deprecated {name}; move to the contract that replaces it", "uses", reference, "contracts", index))
+                findings.append(deprecated(context, f"{provider.id}'s {name}", "uses", reference, "contracts", index))
             elif not contract.get("published") and use["model"] != "share":
                 findings.append(context.finding("unpublished-contract", f"{provider.id} hasn't published {name}, so it can change without warning; ask its owner to publish it, or share a kernel instead", "uses", reference, "contracts", index))
         domain = context.data.get("classification", {}).get("domain")
@@ -72,28 +116,50 @@ def references(context: Context, contexts: dict[str, Context], manifests: list[M
     return findings
 
 
-def agreements(context: Context, contexts: dict[str, Context]) -> list[Finding]:
+def aggregates(context: Context) -> list[Finding]:
+    findings = []
+    provided = context.data.get("provides", {})
+    for name, aggregate in context.data.get("aggregates", {}).items():
+        for field, kind in (("handles", "command"), ("emits", "event")):
+            for index, contract in enumerate(aggregate.get(field, [])):
+                if contract not in provided:
+                    findings.append(context.finding("unknown-contract", f"{context.id} doesn't provide {contract}; add it to provides, or correct the name", "aggregates", name, field, index))
+                elif provided[contract]["kind"] != kind:
+                    findings.append(context.finding("wrong-contract-kind", f"{contract} is {article(provided[contract]['kind'])}, but an aggregate only {field} {article(kind)}; correct its kind, or move it", "aggregates", name, field, index))
+    return findings
+
+
+def article(noun: str) -> str:
+    return f"an {noun}" if noun[0] in "aeiou" else f"a {noun}"
+
+
+def shares(a: Context, b: Context) -> bool:
+    return any(a.ref(reference) == b.id and use["model"] == "share" for reference, use in a.data.get("uses", {}).items())
+
+
+def lists(a: Context, b: Context, field: str) -> bool:
+    return b.id in map(a.ref, a.data.get(field, []))
+
+
+def agreements(context: Context, landscape: Landscape) -> list[Finding]:
     findings = []
     for index, reference in enumerate(context.data.get("partners", [])):
-        other = contexts.get(context.ref(reference))
-        if other is not None and context.id not in map(other.ref, other.data.get("partners", [])):
+        other = landscape.contexts.get(context.ref(reference))
+        if other is not None and not lists(other, context, "partners"):
             findings.append(context.finding("one-sided-partnership", f"{other.id} doesn't list {context.id} as a partner; a partnership needs both sides, so add it there or remove it here", "partners", index))
     for reference, use in context.data.get("uses", {}).items():
-        other = contexts.get(context.ref(reference))
-        if use["model"] != "share" or other is None:
-            continue
-        shared = any(other.ref(theirs) == context.id and their_use["model"] == "share" for theirs, their_use in other.data.get("uses", {}).items())
-        if not shared:
+        other = landscape.contexts.get(context.ref(reference))
+        if use["model"] == "share" and other is not None and not shares(other, context):
             findings.append(context.finding("one-sided-shared-kernel", f"{other.id} doesn't share a kernel with {context.id}; add a use with model share there, or translate here", "uses", reference, "model"))
     return findings
 
 
 def invariants(context: Context) -> list[Finding]:
     findings = []
-    aggregates = context.data.get("aggregates", {})
+    known = context.data.get("aggregates", {})
     for name, invariant in context.data.get("invariants", {}).items():
         for index, aggregate in enumerate(invariant.get("applies_to", [])):
-            if aggregate not in aggregates:
+            if aggregate not in known:
                 findings.append(context.finding("unknown-aggregate", f"{context.id} has no aggregate called '{aggregate}'; add it to aggregates, or correct the name", "invariants", name, "applies_to", index))
         if invariant["status"] == "implemented" and not invariant.get("enforced_by") and not invariant.get("verified_by"):
             findings.append(context.finding("implemented-without-evidence", "the invariant is marked implemented but names no code that enforces it and no test that verifies it; add enforced_by or verified_by, or mark it proposed", "invariants", name, "status"))
@@ -114,9 +180,7 @@ def cycles(contexts: dict[str, Context]) -> list[Finding]:
 
 
 def coupled(a: Context, b: Context) -> bool:
-    partners = b.id in map(a.ref, a.data.get("partners", [])) and a.id in map(b.ref, b.data.get("partners", []))
-    shared = any(a.ref(reference) == b.id and use["model"] == "share" for reference, use in a.data.get("uses", {}).items())
-    return partners or shared
+    return (lists(a, b, "partners") and lists(b, a, "partners")) or shares(a, b)
 
 
 def strongly_connected(edges: dict[str, set[str]]) -> Iterator[set[str]]:
@@ -151,8 +215,43 @@ def strongly_connected(edges: dict[str, set[str]]) -> Iterator[set[str]]:
                 low[node] = min(low[node], index[child])
 
 
-def matched(root: Path, pattern: str) -> set[Path]:
-    return {path for path in root.glob(f"{pattern}/*" if pattern.endswith("**") else pattern) if path.is_file()}
+def consumers(context: Context, contexts: dict[str, Context]) -> dict[str, list[str]]:
+    used: dict[str, list[str]] = {}
+    for other in contexts.values():
+        for reference, use in other.data.get("uses", {}).items():
+            if other.ref(reference) == context.id:
+                for name in use.get("contracts", []):
+                    used.setdefault(name, []).append(other.id)
+    return used
+
+
+@cache
+def repo_files(root: Path) -> tuple[str, ...]:
+    try:
+        listed = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"], capture_output=True, check=True).stdout.decode().split("\0")
+    except (OSError, subprocess.CalledProcessError):
+        listed = [path.relative_to(root).as_posix() for path in root.rglob("*")]
+    return tuple(sorted(name for name in listed if name and not any(part.startswith(".") for part in name.split("/")) and (root / name).is_file()))
+
+
+@cache
+def glob(pattern: str) -> re.Pattern[str]:
+    parts, index = [], 0
+    while index < len(pattern):
+        if pattern.startswith("**/", index):
+            parts.append("(?:.*/)?")
+            index += 3
+        elif pattern.startswith("**", index):
+            parts.append(".*")
+            index += 2
+        else:
+            parts.append({"*": "[^/]*", "?": "[^/]"}.get(pattern[index], re.escape(pattern[index])))
+            index += 1
+    return re.compile("".join(parts))
+
+
+def matched(root: Path, pattern: str) -> list[str]:
+    return [name for name in repo_files(root) if glob(pattern).fullmatch(name)]
 
 
 def code_refs(context: Context) -> Iterator[tuple[str, tuple[str | int, ...]]]:
@@ -169,24 +268,52 @@ def code_refs(context: Context) -> Iterator[tuple[str, tuple[str | int, ...]]]:
                 yield reference, ("invariants", name, field, index)
 
 
-def check_repository(manifests: list[Manifest]) -> list[Finding]:
+def defines(text: str, symbol: str) -> bool:
+    parts = [part for part in re.split(r"\.|::|#|/", symbol) if part]
+    code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith(COMMENT))
+    if not all(re.search(rf"\b{re.escape(part)}\b", code) for part in parts):
+        return False
+    name = re.escape(parts[-1])
+    return any(re.search(pattern, code) for pattern in (DEFINITION + name + r"\b", r"\b" + name + SIGNATURE, r"\b" + name + ASSIGNED))
+
+
+def check_repository(manifests: list[Manifest], landscape_manifests: list[Manifest]) -> list[Finding]:
+    landscape = Landscape(landscape_manifests)
     findings = []
     for manifest in manifests:
-        owners: dict[Path, str] = {}
+        if manifest.root is None:
+            continue
+        claims: dict[str, list[Context | str]] = {}
         for context in manifest.contexts:
-            claimed: set[Path] = set()
             for index, pattern in enumerate(context.data.get("code", [])):
                 files = matched(context.root, pattern)
                 if not files:
                     findings.append(context.finding("missing-path", f"no file in {context.root} matches {pattern}; correct the glob, or remove it", "code", index))
-                claimed |= files
-            for path in sorted(claimed):
-                if path in owners:
-                    findings.append(context.finding("overlapping-code", f"{path.relative_to(context.root)} is in the code of both {owners[path]} and {context.id}; give each file to one context", "code"))
-                owners.setdefault(path, context.id)
+                for name in files:
+                    claims.setdefault(name, []).append(context)
             for reference, keys in code_refs(context):
                 findings += symbol(context, reference, keys)
+            findings += avoided_words(context)
+        for target, part in manifest.document.data.get("implements", {}).items():
+            for index, pattern in enumerate(part["code"]):
+                files = matched(manifest.root, pattern)
+                if not files:
+                    findings.append(manifest.document.finding("missing-path", f"no file in {manifest.root} matches {pattern}; correct the glob, or remove it", "implements", target, "code", index))
+                for name in files:
+                    claims.setdefault(name, []).append(target)
+        for name, claimants in sorted(claims.items()):
+            unique = list({claimant.id if isinstance(claimant, Context) else claimant: claimant for claimant in claimants}.values())
+            if len(unique) > 1 and not kernel(unique, landscape):
+                ids = [claimant.id if isinstance(claimant, Context) else claimant for claimant in unique]
+                last = unique[-1]
+                where = last.finding if isinstance(last, Context) else lambda check, message: manifest.document.finding(check, message, "implements", last)
+                findings.append(where("overlapping-code", f"{name} is in the code of {' and '.join(ids)}, which share no kernel; give each file to one context"))
     return findings
+
+
+def kernel(claimants: list[Context | str], landscape: Landscape) -> bool:
+    contexts = [claimant if isinstance(claimant, Context) else landscape.contexts.get(claimant) for claimant in claimants]
+    return all(a is not None and b is not None and shares(a, b) and shares(b, a) for a in contexts for b in contexts if a is not b)
 
 
 def symbol(context: Context, reference: str, keys: tuple[str | int, ...]) -> list[Finding]:
@@ -194,8 +321,32 @@ def symbol(context: Context, reference: str, keys: tuple[str | int, ...]) -> lis
     path = context.root / file
     if not path.is_file():
         return [context.finding("missing-path", f"{file} doesn't exist in {context.root}; correct the path, or remove it", *keys)]
-    text = path.read_text(errors="replace")
-    missing = [part for part in name.split(".") if part and not re.search(rf"\b{re.escape(part)}\b", text)]
-    if missing:
-        return [context.finding("missing-symbol", f"{file} never mentions {missing[0]}; correct the symbol, or point at the file that defines it", *keys)]
+    if name and not defines(path.read_text(errors="replace"), name):
+        return [context.finding("missing-symbol", f"{file} doesn't define {name}; correct the symbol, or point at the file that defines it", *keys)]
     return []
+
+
+def words(identifier: str) -> list[str]:
+    return [word.lower() for word in re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+", identifier)]
+
+
+def avoided_words(context: Context) -> list[Finding]:
+    avoided = [(entry.get("term", term.replace("-", " ")), word, words(word)) for term, entry in context.data.get("language", {}).items() if isinstance(entry, dict) for word in entry.get("not", [])]
+    if not avoided or context.root is None:
+        return []
+    files = sorted({name for pattern in context.data.get("code", []) for name in matched(context.root, pattern)})
+    findings = []
+    for name in files:
+        path = context.root / name
+        text = path.read_text(errors="replace")
+        if "\0" in text:
+            continue
+        reported = set()
+        for number, line in enumerate(text.splitlines(), 1):
+            for match in re.finditer(r"[A-Za-z_][A-Za-z0-9_]*", line):
+                found = words(match.group())
+                for term, word, phrase in avoided:
+                    if word not in reported and any(found[start : start + len(phrase)] == phrase for start in range(len(found))):
+                        reported.add(word)
+                        findings.append(Finding(str(path), number, match.start() + 1, "avoided-word", f"'{word}' stands in for '{term}' in {context.id}; say {term}"))
+    return findings

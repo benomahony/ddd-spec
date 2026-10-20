@@ -12,6 +12,8 @@
 # yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
 ddd_spec_version: "0.1"
 id: acme.events
+imports:
+  acme.expenses: https://raw.githubusercontent.com/acme/expenses/main/ddd.yaml
 contexts:
   budgeting: domains/budgeting.yaml
 ```
@@ -27,8 +29,9 @@ code: ["src/budgeting/**"]
 language:
   commitment:
     means: Funds reserved for approved expenditure, whether or not it has been paid.
-    from: acme.expenses/claims#approved expense
-  available budget: The event's approved allocation minus its active commitments.
+    not: [hold]
+    from: acme.expenses/claims#approved-expense
+  available-budget: The event's approved allocation minus its active commitments.
 invariants:
   within-allocation:
     statement: Active commitments never exceed the approved allocation.
@@ -43,9 +46,9 @@ uses:
 
 # [Principles]($heading.id('principles'))
 
-1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules and the evidence that they hold. `ddd explain` does exactly that.
-2. **Each fact is declared once, by whoever owns it.** A context lists the contracts it provides and the contracts it uses. Who is upstream, and every pattern from Evans's *Domain-Driven Design*, follows from those facts rather than being declared beside them.
+1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules, the evidence that they hold, and who depends on it. `ddd-spec explain` does exactly that.
+2. **Each fact is declared once, by whoever owns it.** A context lists the contracts it provides and the contracts it uses. Who is upstream follows from those facts rather than being declared beside them.
 3. **Words belong to a context.** The same word may mean different things in different contexts, and a translation between them is written down.
-4. **Absent means undocumented.** A model can describe as much or as little as is known. A missing declaration never means that something doesn't exist.
+4. **Absent means undocumented, but a name must resolve.** A model can describe as much or as little as is known. Every manifest a file refers to is declared, so a misspelt name is an error, not an unknown.
 5. **Claims are not evidence.** `implemented` is what the author says; the linked code and tests are what a reader can check.
 6. **Contracts live elsewhere.** A contract points at its OpenAPI or AsyncAPI definition instead of repeating it.

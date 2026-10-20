@@ -3,7 +3,6 @@ id: acme.events
 contexts:
   budgeting:
     purpose: Control the full committed cost of an event.
-    code: ["src/**"]
     aggregates:
       event-budget:
         root: src/budget.py#EventBudget

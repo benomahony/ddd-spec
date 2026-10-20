@@ -20,15 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-      - name: The schema is valid JSON Schema
-        run: uvx check-jsonschema --check-metaschema ddd.schema.json
+      - name: Every schema is valid JSON Schema
+        run: uvx check-jsonschema --check-metaschema schema/v*/ddd.schema.json
+      # The fixtures describe the latest version; older versions are frozen once released.
+      - name: Choose the latest schema
+        run: echo "SCHEMA=$(ls -d schema/v*/ | sort -V | tail -n1)ddd.schema.json" >> "$GITHUB_ENV"
       - name: Every valid fixture passes
-        run: uvx check-jsonschema --schemafile ddd.schema.json tests/valid/*.yaml
+        run: uvx --with rfc3986-validator check-jsonschema --schemafile "$SCHEMA" tests/valid/*.yaml
       - name: Every invalid fixture fails
         run: |
           status=0
           for fixture in tests/invalid/*.yaml; do
-            if uvx check-jsonschema --schemafile ddd.schema.json "$fixture" > /dev/null; then
+            if uvx --with rfc3986-validator check-jsonschema --schemafile "$SCHEMA" "$fixture" > /dev/null; then
               echo "::error file=$fixture::passed but should fail"
               status=1
             fi

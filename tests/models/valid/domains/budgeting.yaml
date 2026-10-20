@@ -3,16 +3,22 @@ classification: { domain: core }
 scope:
   includes: [Allocating event budgets, Reserving funds for event expenditure]
   excludes: [Reimbursing employees]
-code: ["src/budgeting/**"]
+code: ["src/budgeting/**", "src/money/**"]
 language:
   commitment:
     means: Funds reserved for approved expenditure, whether or not it has been paid.
-    from: expenses#approved expense
+    not: [hold]
+    from: expenses#approved-expense
     code: [src/budgeting/commitment.py#Commitment]
-  available budget: The event's approved allocation minus its active commitments.
+  available-budget: The event's approved allocation minus its active commitments.
+  amount:
+    means: A quantity of money in one currency.
+    code: [src/money/amount.rs#Amount::add]
 aggregates:
   event-budget:
     root: src/budgeting/budget.py#EventBudget
+    handles: [ReserveFunds]
+    emits: [BudgetExceeded]
 invariants:
   within-allocation:
     statement: Active commitments never exceed the approved allocation.
@@ -24,11 +30,17 @@ invariants:
     statement: Every approved expense for an event counts against that event's budget.
     status: proposed
 provides:
-  BudgetExceeded: { kind: event, published: true }
+  BudgetExceeded: { kind: event, published: true, version: "1" }
+  ReserveFunds: { kind: command }
 uses:
   expenses:
     model: translate
     contracts: [ExpenseApproved]
+  money:
+    model: share
+  acme.ledger/postings:
+    model: translate
+    contracts: [PostingRecorded]
   acme.travel/bookings:
     model: conform
     contracts: [TripBooked]

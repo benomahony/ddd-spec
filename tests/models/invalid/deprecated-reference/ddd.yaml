@@ -1,0 +1,23 @@
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure.
+        from: expenses#claim
+    uses:
+      expenses: { model: translate, contracts: [ExpensePaid] }
+      travel: { model: translate, contracts: [TripBooked] }
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    language:
+      claim: { means: A request to be paid back., status: deprecated }
+    provides:
+      ExpensePaid: { kind: event, published: true, version: "1", status: deprecated }
+  travel:
+    purpose: Book travel to events.
+    status: deprecated
+    provides:
+      TripBooked: { kind: event, published: true, version: "1" }

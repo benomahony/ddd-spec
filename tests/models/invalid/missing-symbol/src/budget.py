@@ -1,2 +1,2 @@
-class Budget:
-    pass
+# EventBudget keeps an event's allocation.
+budget = EventBudget()

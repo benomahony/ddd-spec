@@ -3,9 +3,6 @@ id: acme.events
 contexts:
   budgeting:
     purpose: Control the full committed cost of an event.
-    uses:
-      expenses: { model: translate, contracts: [ExpensePaid] }
   expenses:
     purpose: Approve and reimburse what employees spend.
-    provides:
-      ExpensePaid: { kind: event, published: true, status: deprecated }
+    customers: [budgeting]

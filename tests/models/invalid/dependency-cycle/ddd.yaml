@@ -4,12 +4,12 @@ contexts:
   budgeting:
     purpose: Control the full committed cost of an event.
     provides:
-      BudgetExceeded: { kind: event, published: true }
+      BudgetExceeded: { kind: event, published: true, version: "1" }
     uses:
       expenses: { model: translate, contracts: [ExpenseApproved] }
   expenses:
     purpose: Approve and reimburse what employees spend.
     provides:
-      ExpenseApproved: { kind: event, published: true }
+      ExpenseApproved: { kind: event, published: true, version: "1" }
     uses:
       budgeting: { model: translate, contracts: [BudgetExceeded] }

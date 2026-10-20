@@ -34,9 +34,9 @@ jobs:
         working-directory: docs
         run: zine release
 
-      # Each version of the spec keeps its schema at its own URL, which files and editors point at.
-      - name: Publish the schema
-        run: install -D ddd.schema.json docs/public/v0.1/ddd.schema.json
+      # Every version of the spec keeps its schema at its own URL for good, since files and editors point at it.
+      - name: Publish every schema
+        run: cp -R schema/. docs/public/
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

@@ -1,0 +1,10 @@
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    code: ["src/**"]
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure.
+        not: [hold, cost centre]

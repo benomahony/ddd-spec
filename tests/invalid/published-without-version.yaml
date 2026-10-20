@@ -1,0 +1,3 @@
+purpose: Control the full committed cost of an event.
+provides:
+  BudgetExceeded: { kind: event, published: true }

@@ -22,14 +22,24 @@
       "pattern": "^([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*$"
     },
     "term_ref": {
-      "description": "A term in another context's language, as <context>#<term>.",
+      "description": "A term in another context's language, as <context>#<term id>.",
       "type": "string",
-      "pattern": "^([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*#.+$"
+      "pattern": "^([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*#[a-z0-9][a-z0-9-]*$"
+    },
+    "glob": {
+      "description": "A glob relative to the repository root, using /, that never leaves it.",
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))\\S+$"
+    },
+    "globs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/glob" },
+      "uniqueItems": true
     },
     "code_ref": {
-      "description": "A file relative to the repository root, using /, optionally followed by #Symbol.",
+      "description": "A file relative to the repository root, using /, optionally followed by # and a symbol in the file's own language, such as Budget.reserve or Budget::reserve.",
       "type": "string",
-      "pattern": "^[^#\\s/][^#\\s]*(#[A-Za-z_][A-Za-z0-9_.]*)?$"
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\s#]+(#\\S+)?$"
     },
     "code_refs": {
       "type": "array",
@@ -38,7 +48,13 @@
     },
     "contract_name": {
       "type": "string",
-      "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+    },
+    "contract_names": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/contract_name" },
+      "minItems": 1,
+      "uniqueItems": true
     },
     "sentence": {
       "type": "string",
@@ -52,16 +68,11 @@
       "description": "Whether the model describes a plan, the code as it is, or something being removed. Implemented is the author's claim; the linked code and tests are its evidence.",
       "enum": ["proposed", "implemented", "deprecated"]
     },
-    "extensions": {
-      "patternProperties": {
-        "^x-": {}
-      }
-    },
     "manifest": {
       "type": "object",
       "required": ["ddd_spec_version", "id", "contexts"],
-      "allOf": [{ "$ref": "#/$defs/extensions" }],
       "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
       "properties": {
         "ddd_spec_version": {
           "description": "The version of ddd-spec the manifest follows.",
@@ -76,8 +87,28 @@
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": {
             "if": { "type": "string" },
-            "then": { "pattern": "^[^\\s/][^\\s]*\\.ya?ml$" },
+            "then": { "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))\\S+\\.ya?ml$" },
             "else": { "$ref": "#/$defs/context" }
+          }
+        },
+        "imports": {
+          "description": "Every other manifest this one refers to, by id: a path relative to this file, or an https URL, of its ddd.yaml.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/manifest_id" },
+          "additionalProperties": { "type": "string", "format": "uri-reference", "minLength": 1 }
+        },
+        "implements": {
+          "description": "Contexts defined in another manifest that this repository holds code for.",
+          "type": "object",
+          "propertyNames": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*/[a-z0-9][a-z0-9-]*$" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["code"],
+            "unevaluatedProperties": false,
+            "patternProperties": { "^x-": {} },
+            "properties": {
+              "code": { "$ref": "#/$defs/globs" }
+            }
           }
         }
       }
@@ -85,8 +116,8 @@
     "context": {
       "type": "object",
       "required": ["purpose"],
-      "allOf": [{ "$ref": "#/$defs/extensions" }],
       "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
       "properties": {
         "name": { "type": "string" },
         "purpose": {
@@ -96,6 +127,11 @@
         "owner": {
           "description": "The team accountable for the context.",
           "type": "string"
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "external": {
+          "description": "The context is a system outside the organisation, such as a payment provider, described by those who depend on it.",
+          "type": "boolean"
         },
         "classification": {
           "type": "object",
@@ -114,14 +150,13 @@
           }
         },
         "code": {
-          "description": "Globs, relative to the repository root, for the files that implement the context.",
-          "type": "array",
-          "items": { "type": "string", "pattern": "^[^\\s/][^\\s]*$" },
-          "uniqueItems": true
+          "description": "Globs for the files in this repository that implement the context.",
+          "$ref": "#/$defs/globs"
         },
         "language": {
-          "description": "Each term the context uses, with what it means here.",
+          "description": "Each term the context uses, by a stable id, with what it means here.",
           "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "$ref": "#/$defs/term" }
         },
         "aggregates": {
@@ -159,7 +194,9 @@
           "items": { "$ref": "#/$defs/context_ref" },
           "uniqueItems": true
         }
-      }
+      },
+      "if": { "required": ["external"], "properties": { "external": { "const": true } } },
+      "then": { "properties": { "code": false } }
     },
     "term": {
       "if": { "type": "string" },
@@ -167,8 +204,14 @@
       "else": {
         "type": "object",
         "required": ["means"],
-        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "patternProperties": { "^x-": {} },
         "properties": {
+          "term": {
+            "description": "The term as people write it, when that differs from its id with hyphens read as spaces.",
+            "type": "string",
+            "minLength": 1
+          },
           "means": { "$ref": "#/$defs/sentence" },
           "not": {
             "description": "Words that must not stand in for this term inside this context.",
@@ -180,23 +223,34 @@
             "description": "The term in another context this one is translated from.",
             "$ref": "#/$defs/term_ref"
           },
+          "status": { "$ref": "#/$defs/status" },
           "code": { "$ref": "#/$defs/code_refs" }
         }
       }
     },
     "aggregate": {
       "type": "object",
-      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
       "properties": {
         "purpose": { "$ref": "#/$defs/sentence" },
         "root": { "$ref": "#/$defs/code_ref" },
-        "status": { "$ref": "#/$defs/status" }
+        "status": { "$ref": "#/$defs/status" },
+        "handles": {
+          "description": "The commands from this context's provides that the aggregate accepts.",
+          "$ref": "#/$defs/contract_names"
+        },
+        "emits": {
+          "description": "The events from this context's provides that the aggregate raises.",
+          "$ref": "#/$defs/contract_names"
+        }
       }
     },
     "invariant": {
       "type": "object",
       "required": ["statement", "status"],
-      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
       "properties": {
         "statement": { "$ref": "#/$defs/sentence" },
         "status": { "$ref": "#/$defs/status" },
@@ -213,13 +267,19 @@
     "contract": {
       "type": "object",
       "required": ["kind"],
-      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
       "properties": {
         "kind": { "enum": ["command", "query", "event"] },
         "means": { "$ref": "#/$defs/sentence" },
         "published": {
-          "description": "The contract is versioned, and other contexts may rely on it.",
+          "description": "Other contexts may rely on the contract, and it changes only by a new version.",
           "type": "boolean"
+        },
+        "version": {
+          "description": "The published version, such as 2 or 2.1.0.",
+          "type": "string",
+          "minLength": 1
         },
         "status": { "$ref": "#/$defs/status" },
         "defined_in": {
@@ -227,23 +287,21 @@
           "type": "string",
           "format": "uri-reference"
         }
-      }
+      },
+      "if": { "required": ["published"], "properties": { "published": { "const": true } } },
+      "then": { "required": ["version"] }
     },
     "use": {
       "type": "object",
       "required": ["model"],
-      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
       "properties": {
         "model": {
           "description": "Whether this context adopts the other's model, translates it into its own, or shares its code.",
           "enum": ["conform", "translate", "share"]
         },
-        "contracts": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/contract_name" },
-          "minItems": 1,
-          "uniqueItems": true
-        }
+        "contracts": { "$ref": "#/$defs/contract_names" }
       },
       "if": { "properties": { "model": { "enum": ["conform", "translate"] } } },
       "then": { "required": ["contracts"] }

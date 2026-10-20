@@ -10,4 +10,4 @@ contexts:
   expenses:
     purpose: Approve and reimburse what employees spend.
     language:
-      approved expense: An expense a manager has accepted for reimbursement.
+      approved-expense: An expense a manager has accepted for reimbursement.

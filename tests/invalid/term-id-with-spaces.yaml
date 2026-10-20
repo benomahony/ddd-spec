@@ -1,0 +1,3 @@
+purpose: Control the full committed cost of an event.
+language:
+  available budget: The event's approved allocation minus its active commitments.

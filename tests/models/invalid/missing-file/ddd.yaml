@@ -1,4 +1,6 @@
 ddd_spec_version: "0.1"
 id: acme.events
+imports:
+  acme.ledger: ../ledger/ddd.yaml
 contexts:
   budgeting: domains/budgeting.yaml

@@ -11,49 +11,60 @@ A tool reports each level separately, because each establishes something differe
 | Level | Establishes |
 |---|---|
 | 1. Structure | each file is valid against the schema |
-| 2. References | every context, contract, term and aggregate referred to exists, and the landscape has no structural faults |
-| 3. Repository links | every path and symbol referred to exists, and no file belongs to two contexts |
+| 2. References | every manifest, context, contract, term and aggregate referred to exists, and the landscape has no structural faults |
+| 3. Repository links | every path and symbol referred to exists, files belong to one context unless kernels are shared, and avoided words stay out of the code |
 | 4. Evidence | the linked tests and checks run and pass |
 
-A valid model doesn't establish that the domain is modelled well, and a listed invariant doesn't enforce itself. References into a manifest that wasn't loaded are left unchecked rather than reported, since absent means undocumented.
+A valid model doesn't establish that the domain is modelled well, and a listed invariant doesn't enforce itself. Prose fields, such as `purpose`, `scope`, `means` and `statement`, are for people and agents to read; this version defines no automatic checks of them.
 
 # [Validating]($heading.id('validating'))
 
-The reference validator, `ddd`, checks levels 1 to 3. Pass it other repositories' manifests to check the references between them.
+The reference validator checks levels 1 to 3:
+
+```sh
+uvx ddd-spec check
+```
+
+Until it is on PyPI, `uvx --from git+https://github.com/benomahony/ddd-spec ddd-spec check` runs the same thing. It loads the manifest and every import that is a path; `--remote` also fetches imports that are URLs.
 
 ```console
-$ uvx --from git+https://github.com/benomahony/ddd-spec ddd check
-domains/budgeting.yaml:31:17  error  unpublished-contract  acme.events/expenses hasn't published ExpenseApproved, so it can change without warning; ask its owner to publish it, or share a kernel instead
-ddd: 1 problem in the model and no problems in its links to the code, across 2 contexts
+$ ddd-spec check
+domains/budgeting.yaml:38:17  error  unpublished-contract  acme.events/expenses hasn't published ExpenseApproved, so it can change without warning; ask its owner to publish it, or share a kernel instead
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 4 contexts
 ```
 
 | Level | Check | Reported when |
 |---|---|---|
 | 1 | `invalid-yaml` | a file doesn't parse |
 | 1 | `invalid-document` | a file breaks the schema |
-| 1 | `missing-file` | the manifest lists a context file that doesn't exist |
+| 1 | `missing-file` | a context file or imported manifest can't be read |
 | 2 | `duplicate-id` | two manifests share an `id` |
+| 2 | `import-mismatch` | an imported manifest's `id` isn't the one it is imported as |
+| 2 | `unknown-manifest` | a reference names a manifest that isn't imported |
 | 2 | `unknown-context` | a reference names a context its manifest doesn't define |
-| 2 | `unknown-contract` | a context uses a contract the other doesn't provide |
+| 2 | `unknown-contract` | a context or aggregate names a contract that isn't provided |
+| 2 | `wrong-contract-kind` | an aggregate handles something other than a command, or emits something other than an event |
 | 2 | `unknown-term` | a `from` names a term its context doesn't define |
 | 2 | `unknown-aggregate` | an invariant applies to an aggregate its context doesn't define |
 | 2 | `unpublished-contract` | a context relies on a contract that hasn't been published |
-| 2 | `deprecated-contract` | a context uses a deprecated contract |
+| 2 | `deprecated-reference` | a context uses a deprecated context or contract, or translates a deprecated term |
 | 2 | `core-conforms` | a core context conforms to a context that isn't core |
+| 2 | `customer-without-use` | a context lists a customer that uses none of its contracts |
 | 2 | `one-sided-partnership` | only one context lists a partnership |
 | 2 | `one-sided-shared-kernel` | only one context shares a kernel |
 | 2 | `dependency-cycle` | contexts depend on each other without being partners or sharing a kernel |
 | 2 | `implemented-without-evidence` | an implemented invariant names no code or test |
 | 3 | `missing-path` | a glob or path matches no file |
-| 3 | `missing-symbol` | a file never mentions the symbol named |
-| 3 | `overlapping-code` | a file is in the code of two contexts |
+| 3 | `missing-symbol` | a file doesn't define the symbol named |
+| 3 | `overlapping-code` | a file is in the code of two contexts that share no kernel |
+| 3 | `avoided-word` | a context's code uses a word one of its terms says `not` |
 
 It exits 1 when it finds a problem, and 2 when there is no manifest. Problems in the files themselves stop it before the other levels, which rely on valid files.
 
-Before changing a file, ask which contexts it belongs to, and get their scope, language, invariants and contracts:
+Before changing a file, ask which contexts it belongs to. `explain` prints each one's scope, language, invariants and contracts, and which contexts use each contract:
 
 ```sh
-ddd explain src/budgeting/budget.py
+ddd-spec explain src/budgeting/budget.py
 ```
 
 Any JSON Schema validator checks level 1 alone, and editors running the YAML language server validate and complete a file with the `$schema` comment shown at the top.
