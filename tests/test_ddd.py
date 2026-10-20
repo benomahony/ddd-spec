@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from ddd_spec.checks import defines, glob, words
+from ddd_spec.checks import covers, defines, glob, repo_files, words
 from ddd_spec.cli import app
 from ddd_spec.load import LATEST, Document, parse, validate, validators
 
@@ -50,7 +50,7 @@ def test_invalid_files_fail_the_schema(path: Path) -> None:
 def test_a_consistent_model_passes() -> None:
     result = runner.invoke(app, ["check", str(MODELS / "valid")])
     assert result.exit_code == 0, result.output
-    assert "4 contexts agree with each other and with the code" in result.output
+    assert "5 contexts agree with each other and with the code" in result.output
 
 
 @pytest.mark.parametrize("path", fixtures(MODELS / "invalid", "*"), ids=lambda path: path.name)
@@ -142,10 +142,32 @@ def test_globs_follow_the_spec(pattern: str, name: str, expected: bool) -> None:
         ("const reserve = (amount) => amount;\n", "reserve", True),
         ("# Budget.reserve keeps commitments in bounds\n", "Budget.reserve", False),
         ("budget = Budget()\nbudget.reserve(5)\n", "Budget.reserve", False),
+        ('test "a fix is written only over its bytes" {\n', '"a fix is written only over its bytes"', True),
+        ('// test "a fix is written only over its bytes"\n', '"a fix is written only over its bytes"', False),
     ],
 )
 def test_symbols_must_be_defined_not_only_mentioned(text: str, symbol: str, expected: bool) -> None:
     assert defines(text, symbol) is expected
+
+
+@pytest.mark.parametrize(
+    ("patterns", "name", "expected"),
+    [
+        (["src/**", "!src/infer.zig"], "src/infer.zig", False),
+        (["src/**", "!src/infer.zig"], "src/check.zig", True),
+        (["src/**", "!src/*.zig", "src/main.zig"], "src/main.zig", True),
+        (["!src/**"], "src/main.zig", False),
+    ],
+)
+def test_a_negated_glob_takes_back_what_came_before_it(patterns: list[str], name: str, expected: bool) -> None:
+    assert covers(patterns, name) is expected
+
+
+def test_globs_skip_hidden_directories_but_not_dotfiles(tmp_path: Path) -> None:
+    for name in (".github/workflows/ci.yml", ".pre-commit-hooks.yaml", "src/a.py"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("")
+    assert repo_files(tmp_path) == (".pre-commit-hooks.yaml", "src/a.py")
 
 
 def test_identifiers_split_into_words() -> None:

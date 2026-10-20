@@ -107,7 +107,7 @@ def references(context: Context, landscape: Landscape) -> list[Finding]:
                 findings.append(context.finding("unknown-contract", f"{provider.id} doesn't provide {name}; add it to its provides, or correct the name", "uses", reference, "contracts", index))
             elif contract.get("status") == "deprecated":
                 findings.append(deprecated(context, f"{provider.id}'s {name}", "uses", reference, "contracts", index))
-            elif not contract.get("published") and use["model"] != "share":
+            elif not contract.get("published") and use["model"] != "share" and not (lists(context, provider, "partners") and lists(provider, context, "partners")):
                 findings.append(context.finding("unpublished-contract", f"{provider.id} hasn't published {name}, so it can change without warning; ask its owner to publish it, or share a kernel instead", "uses", reference, "contracts", index))
         domain = context.data.get("classification", {}).get("domain")
         theirs = provider.data.get("classification", {}).get("domain")
@@ -231,7 +231,7 @@ def repo_files(root: Path) -> tuple[str, ...]:
         listed = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"], capture_output=True, check=True).stdout.decode().split("\0")
     except (OSError, subprocess.CalledProcessError):
         listed = [path.relative_to(root).as_posix() for path in root.rglob("*")]
-    return tuple(sorted(name for name in listed if name and not any(part.startswith(".") for part in name.split("/")) and (root / name).is_file()))
+    return tuple(sorted(name for name in listed if name and not any(part.startswith(".") for part in name.split("/")[:-1]) and (root / name).is_file()))
 
 
 @cache
@@ -251,7 +251,19 @@ def glob(pattern: str) -> re.Pattern[str]:
 
 
 def matched(root: Path, pattern: str) -> list[str]:
-    return [name for name in repo_files(root) if glob(pattern).fullmatch(name)]
+    return [name for name in repo_files(root) if glob(pattern.removeprefix("!")).fullmatch(name)]
+
+
+def covers(patterns: list[str], name: str) -> bool:
+    included = False
+    for pattern in patterns:
+        if glob(pattern.removeprefix("!")).fullmatch(name):
+            included = not pattern.startswith("!")
+    return included
+
+
+def claimed(root: Path, patterns: list[str]) -> list[str]:
+    return [name for name in repo_files(root) if covers(patterns, name)]
 
 
 def code_refs(context: Context) -> Iterator[tuple[str, tuple[str | int, ...]]]:
@@ -269,8 +281,10 @@ def code_refs(context: Context) -> Iterator[tuple[str, tuple[str | int, ...]]]:
 
 
 def defines(text: str, symbol: str) -> bool:
-    parts = [part for part in re.split(r"\.|::|#|/", symbol) if part]
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith(COMMENT))
+    if symbol.startswith('"'):
+        return symbol in code
+    parts = [part for part in re.split(r"\.|::|#|/", symbol) if part]
     if not all(re.search(rf"\b{re.escape(part)}\b", code) for part in parts):
         return False
     name = re.escape(parts[-1])
@@ -285,22 +299,21 @@ def check_repository(manifests: list[Manifest], landscape_manifests: list[Manife
             continue
         claims: dict[str, list[Context | str]] = {}
         for context in manifest.contexts:
-            for index, pattern in enumerate(context.data.get("code", [])):
-                files = matched(context.root, pattern)
-                if not files:
+            patterns = context.data.get("code", [])
+            for index, pattern in enumerate(patterns):
+                if not matched(context.root, pattern):
                     findings.append(context.finding("missing-path", f"no file in {context.root} matches {pattern}; correct the glob, or remove it", "code", index))
-                for name in files:
-                    claims.setdefault(name, []).append(context)
+            for name in claimed(context.root, patterns):
+                claims.setdefault(name, []).append(context)
             for reference, keys in code_refs(context):
                 findings += symbol(context, reference, keys)
             findings += avoided_words(context)
         for target, part in manifest.document.data.get("implements", {}).items():
             for index, pattern in enumerate(part["code"]):
-                files = matched(manifest.root, pattern)
-                if not files:
+                if not matched(manifest.root, pattern):
                     findings.append(manifest.document.finding("missing-path", f"no file in {manifest.root} matches {pattern}; correct the glob, or remove it", "implements", target, "code", index))
-                for name in files:
-                    claims.setdefault(name, []).append(target)
+            for name in claimed(manifest.root, part["code"]):
+                claims.setdefault(name, []).append(target)
         for name, claimants in sorted(claims.items()):
             unique = list({claimant.id if isinstance(claimant, Context) else claimant: claimant for claimant in claimants}.values())
             if len(unique) > 1 and not kernel(unique, landscape):
@@ -334,9 +347,8 @@ def avoided_words(context: Context) -> list[Finding]:
     avoided = [(entry.get("term", term.replace("-", " ")), word, words(word)) for term, entry in context.data.get("language", {}).items() if isinstance(entry, dict) for word in entry.get("not", [])]
     if not avoided or context.root is None:
         return []
-    files = sorted({name for pattern in context.data.get("code", []) for name in matched(context.root, pattern)})
     findings = []
-    for name in files:
+    for name in claimed(context.root, context.data.get("code", [])):
         path = context.root / name
         text = path.read_text(errors="replace")
         if "\0" in text:

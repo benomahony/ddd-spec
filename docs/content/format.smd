@@ -39,9 +39,9 @@ Paths and globs are relative to the repository root, use `/`, are case-sensitive
 | `**/` | zero or more whole directories |
 | `**` at the end | everything below that point |
 
-Every other character matches itself. A glob MUST NOT match a file inside a directory whose name starts with `.`, or a file the repository's git configuration ignores.
+Every other character matches itself. A list of globs is read in order: a glob starting with `!` takes the files it matches back out of those matched before it, so `["src/**", "!src/infer.zig"]` is everything in `src` but one file. A glob MUST NOT match a file inside a directory whose name starts with `.`, or a file the repository's git configuration ignores.
 
-A reference to code is a path, optionally followed by `#` and a symbol written as the file's own language writes it: `budget.py#EventBudget.reserve`, `budget.rs#EventBudget::reserve`, `Budget.java#Budget#reserve`. A tool SHOULD check that the file defines the symbol's last part, not merely mentions it.
+A reference to code is a path, optionally followed by `#` and a symbol written as the file's own language writes it: `budget.py#EventBudget.reserve`, `budget.rs#EventBudget::reserve`, `Budget.java#Budget#reserve`. A test named by a string, as Zig, Jest and RSpec name them, is referred to by that string in double quotes: `src/main.zig#"a fix is written only over its bytes"`. A tool SHOULD check that the file defines the symbol's last part, not merely mentions it.
 
 ## [Extensions and versions]($heading.id('extensions-and-versions'))
 

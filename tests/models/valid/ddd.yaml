@@ -8,11 +8,13 @@ contexts:
   expenses:
     purpose: Approve and reimburse what employees spend.
     classification: { domain: supporting }
-    code: ["src/expenses/**"]
+    code: ["src/**", "!src/budgeting/**", "!src/money/**", "!src/postings/**"]
     language:
       approved-expense: An expense a manager has accepted for reimbursement.
     provides:
       ExpenseApproved: { kind: event, published: true, version: "1" }
+      ExpenseForecast: { kind: query }
+    partners: [forecasting]
     uses:
       payments: { model: translate, contracts: [charge.succeeded] }
     customers: [budgeting]
@@ -21,6 +23,11 @@ contexts:
     code: ["src/money/**"]
     uses:
       budgeting: { model: share }
+  forecasting:
+    purpose: Predict what each event will end up spending.
+    uses:
+      expenses: { model: translate, contracts: [ExpenseForecast] }
+    partners: [expenses]
   payments:
     purpose: Take card payments for us.
     external: true

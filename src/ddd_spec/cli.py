@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 from ruamel.yaml import YAML
 
-from ddd_spec.checks import Landscape, check_model, check_repository, consumers, glob
+from ddd_spec.checks import Landscape, check_model, check_repository, consumers, covers
 from ddd_spec.load import MANIFEST, Finding, Manifest, load_landscape
 
 app = typer.Typer(add_completion=False)
@@ -71,8 +71,8 @@ def explain(path: Annotated[Path, typer.Argument(exists=True, help="A file you a
     primary, everything = load_all([manifest_file], remote)
     manifest, landscape = primary[0], Landscape(everything)
     name = target.relative_to(manifest_file.parent.resolve()).as_posix()
-    owners = [context.id for context in manifest.contexts if any(glob(pattern).fullmatch(name) for pattern in context.data.get("code", []))]
-    owners += [id for id, part in manifest.document.data.get("implements", {}).items() if any(glob(pattern).fullmatch(name) for pattern in part["code"])]
+    owners = [context.id for context in manifest.contexts if covers(context.data.get("code", []), name)]
+    owners += [id for id, part in manifest.document.data.get("implements", {}).items() if covers(part["code"], name)]
     if not owners:
         typer.echo(f"ddd-spec: {path} isn't in the code of any context in {manifest_file}; add it to the one it belongs to")
         raise typer.Exit(1)

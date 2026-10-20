@@ -82,9 +82,9 @@ Paths and globs are relative to the repository root, use `/`, are case-sensitive
 | `**/` | zero or more whole directories |
 | `**` at the end | everything below that point |
 
-Every other character matches itself. A glob MUST NOT match a file inside a directory whose name starts with `.`, or a file the repository's git configuration ignores.
+Every other character matches itself. A list of globs is read in order: a glob starting with `!` takes the files it matches back out of those matched before it, so `["src/**", "!src/infer.zig"]` is everything in `src` but one file. A glob MUST NOT match a file inside a directory whose name starts with `.`, or a file the repository's git configuration ignores.
 
-A reference to code is a path, optionally followed by `#` and a symbol written as the file's own language writes it: `budget.py#EventBudget.reserve`, `budget.rs#EventBudget::reserve`, `Budget.java#Budget#reserve`. A tool SHOULD check that the file defines the symbol's last part, not merely mentions it.
+A reference to code is a path, optionally followed by `#` and a symbol written as the file's own language writes it: `budget.py#EventBudget.reserve`, `budget.rs#EventBudget::reserve`, `Budget.java#Budget#reserve`. A test named by a string, as Zig, Jest and RSpec name them, is referred to by that string in double quotes: `src/main.zig#"a fix is written only over its bytes"`. A tool SHOULD check that the file defines the symbol's last part, not merely mentions it.
 
 ### Extensions and versions
 
@@ -190,7 +190,7 @@ Until it is on PyPI, `uvx --from git+https://github.com/benomahony/ddd-spec ddd-
 ```console
 $ ddd-spec check
 domains/budgeting.yaml:38:17  error  unpublished-contract  acme.events/expenses hasn't published ExpenseApproved, so it can change without warning; ask its owner to publish it, or share a kernel instead
-ddd-spec: 1 problem in the model and no problems in its links to the code, across 4 contexts
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 5 contexts
 ```
 
 | Level | Check | Reported when |
@@ -206,7 +206,7 @@ ddd-spec: 1 problem in the model and no problems in its links to the code, acros
 | 2 | `wrong-contract-kind` | an aggregate handles something other than a command, or emits something other than an event |
 | 2 | `unknown-term` | a `from` names a term its context doesn't define |
 | 2 | `unknown-aggregate` | an invariant applies to an aggregate its context doesn't define |
-| 2 | `unpublished-contract` | a context relies on a contract that hasn't been published |
+| 2 | `unpublished-contract` | a context relies on a contract that hasn't been published, unless the two are partners or share a kernel |
 | 2 | `deprecated-reference` | a context uses a deprecated context or contract, or translates a deprecated term |
 | 2 | `core-conforms` | a core context conforms to a context that isn't core |
 | 2 | `customer-without-use` | a context lists a customer that uses none of its contracts |

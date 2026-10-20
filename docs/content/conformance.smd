@@ -30,7 +30,7 @@ Until it is on PyPI, `uvx --from git+https://github.com/benomahony/ddd-spec ddd-
 ```console
 $ ddd-spec check
 domains/budgeting.yaml:38:17  error  unpublished-contract  acme.events/expenses hasn't published ExpenseApproved, so it can change without warning; ask its owner to publish it, or share a kernel instead
-ddd-spec: 1 problem in the model and no problems in its links to the code, across 4 contexts
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 5 contexts
 ```
 
 | Level | Check | Reported when |
@@ -46,7 +46,7 @@ ddd-spec: 1 problem in the model and no problems in its links to the code, acros
 | 2 | `wrong-contract-kind` | an aggregate handles something other than a command, or emits something other than an event |
 | 2 | `unknown-term` | a `from` names a term its context doesn't define |
 | 2 | `unknown-aggregate` | an invariant applies to an aggregate its context doesn't define |
-| 2 | `unpublished-contract` | a context relies on a contract that hasn't been published |
+| 2 | `unpublished-contract` | a context relies on a contract that hasn't been published, unless the two are partners or share a kernel |
 | 2 | `deprecated-reference` | a context uses a deprecated context or contract, or translates a deprecated term |
 | 2 | `core-conforms` | a core context conforms to a context that isn't core |
 | 2 | `customer-without-use` | a context lists a customer that uses none of its contracts |

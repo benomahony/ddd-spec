@@ -27,9 +27,9 @@
       "pattern": "^([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*#[a-z0-9][a-z0-9-]*$"
     },
     "glob": {
-      "description": "A glob relative to the repository root, using /, that never leaves it.",
+      "description": "A glob relative to the repository root, using /, that never leaves it. A leading ! takes the files it matches back out of those matched before it.",
       "type": "string",
-      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))\\S+$"
+      "pattern": "^!?(?!/)(?!\\.\\.(/|$))(?!.*/\\.\\.(/|$))[^!\\s]\\S*$"
     },
     "globs": {
       "type": "array",
@@ -37,9 +37,9 @@
       "uniqueItems": true
     },
     "code_ref": {
-      "description": "A file relative to the repository root, using /, optionally followed by # and a symbol in the file's own language, such as Budget.reserve or Budget::reserve.",
+      "description": "A file relative to the repository root, using /, optionally followed by # and a symbol in the file's own language, such as Budget.reserve or Budget::reserve, or a test's name in double quotes.",
       "type": "string",
-      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\s#]+(#\\S+)?$"
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\s#]+(#(\"[^\"]+\"|[^\\s\"]+))?$"
     },
     "code_refs": {
       "type": "array",
