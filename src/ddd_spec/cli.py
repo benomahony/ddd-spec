@@ -18,7 +18,7 @@ def show_version(requested: bool) -> None:
 
 @app.callback()
 def main(_: Annotated[bool, typer.Option("--version", callback=show_version, is_eager=True, help="Show the version and exit.")] = False) -> None:
-    """Validate ddd.yaml domain models."""
+    """Validate ddd-spec domain models."""
 
 
 @app.command()

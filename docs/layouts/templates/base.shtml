@@ -4,7 +4,7 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<title :text="$page.title.suffix(' · ddd-spec')"></title>
-		<meta name="description" content="ddd.yaml: a file format for domain models">
+		<meta name="description" content="ddd-spec: a file format for domain models">
 		<link rel="stylesheet" href="$site.asset('style.css').link()">
 		<super>
 	</head>
@@ -12,7 +12,7 @@
 		<div class="layout">
 			<nav class="sidebar">
 				<a class="brand" href="$site.page('').link()">
-					<span class="logo">ddd.yaml</span>
+					<span class="logo">ddd-spec</span>
 					<span class="tagline">a file format for domain models</span>
 				</a>
 				<ul>

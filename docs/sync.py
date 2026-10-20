@@ -4,9 +4,9 @@ from pathlib import Path
 DOCS = Path(__file__).parent.resolve()
 REPO = DOCS.parent
 CONTENT = DOCS / "content"
-TITLE = "# ddd.yaml"
+TITLE = "# ddd-spec"
 PAGES: dict[str, tuple[str, str, str, str, str]] = {
-    "index.smd": ("ddd.yaml", "", "index.shtml", TITLE, "## Files"),
+    "index.smd": ("ddd-spec", "", "index.shtml", TITLE, "## Files"),
     "documents.smd": ("Documents", "Every kind of document, and what each of its fields means.", "page.shtml", "## Files", "## Conformance"),
     "conformance.smd": ("Conformance", "What a tool checks at each level, and how to validate a file.", "page.shtml", "## Conformance", "## Contributing"),
 }
@@ -34,7 +34,7 @@ def heading(line: str) -> str:
 
 def lede(readme: list[str]) -> str:
     paragraph = readme[readme.index(TITLE) + 2]
-    assert paragraph and not paragraph.startswith(("#", "`", "<")), f"README.md's first paragraph after its title is {paragraph!r}; start with a sentence saying what ddd.yaml is"
+    assert paragraph and not paragraph.startswith(("#", "`", "<")), f"README.md's first paragraph after its title is {paragraph!r}; start with a sentence saying what ddd-spec is"
     return paragraph
 
 

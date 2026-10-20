@@ -1,4 +1,4 @@
-# ddd.yaml
+# ddd-spec
 
 A file format for domain models: bounded contexts, the language each one speaks, how they relate, and the aggregates inside them. People, coding agents and tools all read the same file.
 

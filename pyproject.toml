@@ -1,7 +1,7 @@
 [project]
 name = "ddd-spec"
 version = "0.1.0"
-description = "The reference validator for ddd.yaml domain models."
+description = "The reference validator for ddd-spec domain models."
 authors = [
     { name = "benomahony", email = "bomarni@gmail.com" }
 ]

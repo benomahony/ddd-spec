@@ -1,5 +1,5 @@
 ---
-.title = "ddd.yaml",
+.title = "ddd-spec",
 .description = "A file format for domain models: bounded contexts, the language each one speaks, how they relate, and the aggregates inside them. People, coding agents and tools all read the same file.",
 .date = .date("2026-10-20T00:00:03"),
 .layout = "index.shtml",
