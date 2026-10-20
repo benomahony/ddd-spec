@@ -35,7 +35,7 @@ relationships:
 
 ## Files
 
-A repository describes its model in `ddd.yaml` at its root or in any `*.ddd.yaml` file. A file holds one or more documents separated by `---`. The schema in [`ddd.schema.json`](ddd.schema.json) applies to each document.
+A repository describes its model in `ddd.yaml` at its root or in any `*.ddd.yaml` file. A file holds one or more documents separated by `---`. The schema in [`ddd.schema.json`](https://github.com/benomahony/ddd-spec/blob/main/ddd.schema.json) applies to each document.
 
 Every document has:
 
@@ -107,3 +107,5 @@ Editors running the YAML language server validate and complete a file with the `
 ## Contributing
 
 `tests/valid` holds documents the schema must accept and `tests/invalid` documents it must reject, each with exactly one fault. Any change to the schema comes with fixtures for it, and other implementations can test themselves against the same files.
+
+The [site](https://benomahony.github.io/ddd-spec) is built with [Zine](https://zine-ssg.io) from this README. After changing it, run `python3 docs/sync.py` to regenerate the pages, and `zine` in `docs` to preview them.

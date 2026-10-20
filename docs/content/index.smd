@@ -1,0 +1,39 @@
+---
+.title = "ddd.yaml",
+.description = "A file format for domain models: bounded contexts, the language each one speaks, how they relate, and the aggregates inside them. People, coding agents and tools all read the same file.",
+.date = .date("2026-10-20T00:00:03"),
+.layout = "index.shtml",
+---
+
+
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/benomahony/ddd-spec/main/ddd.schema.json
+ddd: 1
+kind: BoundedContext
+id: acme/billing
+purpose: Turn fulfilled orders into invoices and collect payment.
+owner: team/money
+language:
+  invoice: A request for payment for one fulfilled order.
+  customer:
+    means: The party an invoice is addressed to and who owes payment.
+    not: [client, user]
+outbound:
+  - to: acme/shipping
+    event: InvoicePaid
+    contract: asyncapi.yaml#/channels/invoicePaid
+relationships:
+  - with: acme/shipping
+    pattern: upstream-downstream
+    side: upstream
+    as: [open-host-service, published-language]
+```
+
+# [Principles]($heading.id('principles'))
+
+1. **Familiar words.** Fields follow the [Bounded Context Canvas](https://github.com/ddd-crew/bounded-context-canvas) and the [Aggregate Design Canvas](https://github.com/ddd-crew/aggregate-design-canvas). Relationship patterns follow [Context Mapper](https://contextmapper.org/docs/context-map/).
+2. **Owners write locally, and the map is computed.** Each context declares its own side of every relationship, in its own repository. The context map is built from those declarations, and two sides that disagree is a finding.
+3. **No global vocabulary.** A word means something only inside a context. Translations between contexts are written down with `from`.
+4. **Contracts live elsewhere.** A message points to its OpenAPI or AsyncAPI definition instead of repeating it.
+5. **Plain language.** A term can be just `term: definition`.

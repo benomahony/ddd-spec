@@ -1,0 +1,21 @@
+---
+.title = "Conformance",
+.description = "What a tool checks at each level, and how to validate a file.",
+.date = .date("2026-10-20T00:00:01"),
+.layout = "page.shtml",
+---
+
+
+| Level | A tool checks that |
+|---|---|
+| L1 | each document is valid against the schema |
+| L2 | every `id` a document refers to resolves, and the two sides of every relationship and message agree |
+| L3 | the code agrees with the model, for example that no `not` word is used inside a context |
+
+# [Validating]($heading.id('validating'))
+
+```sh
+uvx check-jsonschema --schemafile ddd.schema.json ddd.yaml
+```
+
+Editors running the YAML language server validate and complete a file with the `$schema` comment shown at the top.
