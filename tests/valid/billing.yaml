@@ -1,0 +1,37 @@
+ddd: 1
+kind: BoundedContext
+id: acme/billing
+purpose: Turn fulfilled orders into invoices and collect payment.
+owner: team/money
+classification:
+  domain: supporting
+  business_model: revenue
+  evolution: custom-built
+roles: [execution]
+language:
+  invoice: A request for payment for one fulfilled order.
+  customer:
+    means: The party an invoice is addressed to and who owes payment.
+    not: [client, user]
+decisions:
+  - An invoice is issued only after every line is fulfilled.
+inbound:
+  - from: acme/sales
+    command: IssueInvoice
+outbound:
+  - to: acme/shipping
+    event: InvoicePaid
+    contract: asyncapi.yaml#/channels/invoicePaid
+relationships:
+  - with: acme/sales
+    pattern: customer-supplier
+    side: upstream
+    as: [open-host-service]
+  - with: acme/shipping
+    pattern: upstream-downstream
+    side: upstream
+    as: [open-host-service, published-language]
+assumptions:
+  - Payments settle within three working days.
+open_questions:
+  - Do partial refunds reopen an invoice?

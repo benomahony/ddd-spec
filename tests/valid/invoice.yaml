@@ -1,0 +1,11 @@
+ddd: 1
+kind: Aggregate
+id: acme/billing/Invoice
+description: The amount owed for one fulfilled order, and how it was paid.
+handles: [IssueInvoice, RecordPayment]
+emits: [InvoiceIssued, InvoicePaid]
+states: [draft, issued, paid, void]
+invariants:
+  - An issued invoice's lines never change.
+corrective_policies:
+  - When a payment bounces, return the invoice to issued.

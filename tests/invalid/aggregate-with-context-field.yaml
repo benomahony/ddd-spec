@@ -1,0 +1,4 @@
+ddd: 1
+kind: Aggregate
+id: acme/billing/Invoice
+purpose: Aggregates have a description, not a purpose.

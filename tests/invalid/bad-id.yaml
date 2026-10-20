@@ -1,0 +1,4 @@
+ddd: 1
+kind: BoundedContext
+id: acme//sales
+purpose: Take orders from customers.
