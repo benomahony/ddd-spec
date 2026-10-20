@@ -56,6 +56,16 @@
       "minItems": 1,
       "uniqueItems": true
     },
+    "pinned_contract": {
+      "description": "A contract by name, optionally pinned to the version this context was built against, as Name@version.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]*(@[^@\\s]+)?$"
+    },
+    "contract_ref": {
+      "description": "A contract this context provides, by name, or one another context provides, as <context>#<name>.",
+      "type": "string",
+      "pattern": "^(([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*#)?[A-Za-z][A-Za-z0-9._-]*$"
+    },
     "sentence": {
       "type": "string",
       "minLength": 1
@@ -92,10 +102,14 @@
           }
         },
         "imports": {
-          "description": "Every other manifest this one refers to, by id: a path relative to this file, or an https URL, of its ddd.yaml.",
+          "description": "Every other manifest this one refers to, by id: a path relative to this file, or an https URL, of its ddd.yaml. Plain http is allowed only to the local machine.",
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/manifest_id" },
-          "additionalProperties": { "type": "string", "format": "uri-reference", "minLength": 1 }
+          "additionalProperties": {
+            "type": "string",
+            "format": "uri-reference",
+            "pattern": "^(https://\\S+|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?/\\S*|(?![A-Za-z][A-Za-z0-9+.-]*:)\\S+)$"
+          }
         },
         "implements": {
           "description": "Contexts defined in another manifest that this repository holds code for.",
@@ -163,6 +177,12 @@
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "$ref": "#/$defs/aggregate" }
+        },
+        "policies": {
+          "description": "What the context does when an event arrives: the commands it issues in response.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/policy" }
         },
         "invariants": {
           "description": "Rules every change must preserve.",
@@ -246,6 +266,27 @@
         }
       }
     },
+    "policy": {
+      "type": "object",
+      "required": ["when", "then"],
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "when": {
+          "description": "The event that sets the policy off.",
+          "$ref": "#/$defs/contract_ref"
+        },
+        "then": {
+          "description": "The commands issued in response.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/contract_ref" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "statement": { "$ref": "#/$defs/sentence" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
     "invariant": {
       "type": "object",
       "required": ["statement", "status"],
@@ -301,10 +342,20 @@
           "description": "Whether this context adopts the other's model, translates it into its own, or shares its code.",
           "enum": ["conform", "translate", "share"]
         },
-        "contracts": { "$ref": "#/$defs/contract_names" }
+        "contracts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pinned_contract" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "code": {
+          "description": "With model share, the globs for the files the two contexts share.",
+          "$ref": "#/$defs/globs"
+        }
       },
-      "if": { "properties": { "model": { "enum": ["conform", "translate"] } } },
-      "then": { "required": ["contracts"] }
+      "if": { "properties": { "model": { "const": "share" } } },
+      "then": { "required": ["code"] },
+      "else": { "required": ["contracts"], "properties": { "code": false } }
     }
   }
 }

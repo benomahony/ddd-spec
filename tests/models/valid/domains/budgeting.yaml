@@ -19,6 +19,11 @@ aggregates:
     root: src/budgeting/budget.py#EventBudget
     handles: [ReserveFunds]
     emits: [BudgetExceeded]
+policies:
+  reserve-approved-expenses:
+    when: expenses#ExpenseApproved
+    then: [ReserveFunds]
+    statement: Every approved expense for an event reserves funds against its budget.
 invariants:
   within-allocation:
     statement: Active commitments never exceed the approved allocation.
@@ -35,9 +40,10 @@ provides:
 uses:
   expenses:
     model: translate
-    contracts: [ExpenseApproved]
+    contracts: [ExpenseApproved@1]
   money:
     model: share
+    code: ["src/money/**"]
   acme.ledger/postings:
     model: translate
     contracts: [PostingRecorded]

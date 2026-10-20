@@ -1,0 +1,288 @@
+---
+.title = "Specification 0.1",
+.description = "Every file, field and rule of ddd-spec, normatively.",
+.date = .date("2026-10-20T00:00:03"),
+.layout = "page.shtml",
+---
+
+
+This is the specification of ddd-spec version 0.1: the files that describe a repository's domain model, what each field means, and the rules a tool checks them against. Its schema is published at `https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json`. Once released, neither this text nor that schema changes; a later version gets its own.
+
+The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are to be read as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119). Sections marked *informative* explain; everything else is normative.
+
+# [Overview]($heading.id('overview'))
+
+*Informative.* A repository describes its model in a manifest, `ddd.yaml`, at its root. The manifest names the repository's bounded contexts. Each context says what it is for, which files implement it, what its words mean, which rules every change must preserve, which contracts it owns, and which contracts of other contexts it depends on. Manifests in different repositories refer to each other by id, so the model of a whole organisation is the sum of what each repository declares.
+
+# [Files]($heading.id('files'))
+
+## [YAML]($heading.id('yaml'))
+
+Every file is YAML 1.2, encoded as UTF-8, holding exactly one document whose top level is a mapping. A file MUST NOT repeat a key in a mapping, and MUST NOT use anchors, aliases or tags, so that every reader sees the same values.
+
+## [Manifest]($heading.id('manifest'))
+
+A repository that describes its model MUST have one manifest, `ddd.yaml`, at its root. The repository root is the directory that holds the manifest.
+
+| Field | Required | Meaning |
+|---|---|---|
+| `ddd_spec_version` | yes | The string `"0.1"` |
+| `id` | yes | The manifest's id, unique across every repository: lowercase letters, digits, `.` and `-`, such as `acme.events` |
+| `name` | | A display name |
+| `contexts` | yes | Every context the repository defines, by name: either the path of a context file, relative to the manifest, ending in `.yaml` or `.yml`, or the context itself |
+| `imports` | | Every other manifest the files refer to: its id, mapped to its location, described under [Imports]($link.page('specification').ref('imports')) |
+| `implements` | | Contexts defined in another manifest that this repository holds code for: each one's full id, mapped to a mapping with its `code` |
+
+A context file holds one context, whose fields are those of [Contexts]($link.page('specification').ref('contexts')). A tool MUST read only the manifest, the context files it lists, and the manifests it imports.
+
+## [Imports]($heading.id('imports'))
+
+An import's location is a path relative to the importing manifest, an `https` URL, or an `http` URL to `localhost`, `127.0.0.1` or `[::1]`. A tool MUST NOT fetch an import that is a URL unless the person running it asks for that, and MUST NOT fetch a plain `http` URL to any other host.
+
+A manifest imported under an id MUST have that id. Manifests MAY follow different versions of this specification; a tool reads each under its own version, and a context file under the version of the manifest that lists it.
+
+## [Extensions]($heading.id('extensions'))
+
+A field whose name starts with `x-` is an extension. Extensions are allowed on every mapping the specification defines, and a tool MUST ignore those it doesn't know. Any other field not defined here is an error.
+
+# [Names and references]($heading.id('names-and-references'))
+
+## [Names]($heading.id('names'))
+
+Context names, term ids, aggregate names, policy names and invariant names are made of lowercase letters, digits and hyphens, and start with a letter or digit. A contract's name starts with a letter and may contain letters, digits, `.`, `_` and `-`, such as `ExpenseApproved` or `expenses.expense-approved.v1`. All names and ids are case-sensitive.
+
+## [References]($heading.id('references'))
+
+| Reference | Written as | Example |
+|---|---|---|
+| A context | its name within its own manifest, or `<manifest id>/<name>` from anywhere | `budgeting`, `acme.events/budgeting` |
+| A term | `<context>#<term id>` | `acme.expenses/claims#approved-expense` |
+| A contract, in a policy | its name, when this context provides it, or `<context>#<name>` | `ReserveFunds`, `expenses#ExpenseApproved` |
+| A contract, in `uses` | its name, optionally pinned as `<name>@<version>` | `ExpenseApproved@2` |
+
+A context's full id is its manifest's id, a `/`, and its name. A reference to another manifest MUST name a manifest listed in `imports`. When a tool hasn't loaded an imported manifest, it MUST NOT report references into it as unknown: the model there is undocumented, not wrong.
+
+## [Paths and globs]($heading.id('paths-and-globs'))
+
+Paths and globs are relative to the repository root, use `/` between directories, and MUST NOT begin with `/` or contain a `..` segment. A glob matches files, never directories:
+
+| Pattern | Matches |
+|---|---|
+| `*` | any run of characters except `/` |
+| `?` | any one character except `/` |
+| `**/` | zero or more whole directories |
+| `**` at the end | every file below that point |
+
+Every other character matches itself. A list of globs is read in order. A glob starting with `!` removes the files it matches from those matched by the globs before it, so `["src/**", "!src/infer.zig"]` is every file in `src` but one. No glob matches a file inside a directory whose name starts with `.`, or a file the repository's git configuration ignores.
+
+## [Code references]($heading.id('code-references'))
+
+A code reference is a path, optionally followed by `#` and a symbol. A symbol is written as the file's own language writes it, such as `EventBudget.reserve` in Python, `EventBudget::reserve` in Rust, or `Budget#reserve` in Java. A test that its language names with a string, as Zig, Jest and RSpec do, is referred to by that string in double quotes: `src/main.zig#"a fix is written only over its bytes"`.
+
+# [Contexts]($heading.id('contexts'))
+
+Only `purpose` is required.
+
+| Field | Meaning |
+|---|---|
+| `purpose` | The business responsibility of the context, in a sentence |
+| `name` | A display name |
+| `owner` | The team accountable for the context |
+| `status` | `proposed`, `implemented` or `deprecated`; see [Status]($link.page('specification').ref('status')) |
+| `external` | `true` for a system outside the organisation, such as a payment provider, described by those who depend on it. An external context MUST NOT have `code` |
+| `classification` | A mapping whose `domain` is `core`, `supporting` or `generic` |
+| `scope` | What the context `includes` and what it `excludes`, each a list of sentences |
+| `code` | Globs for the files in this repository that implement the context |
+| `language` | Its terms; see [Language]($link.page('specification').ref('language')) |
+| `aggregates` | Its consistency boundaries; see [Aggregates]($link.page('specification').ref('aggregates')) |
+| `policies` | What it does when events arrive; see [Policies]($link.page('specification').ref('policies')) |
+| `invariants` | The rules every change must preserve; see [Invariants]($link.page('specification').ref('invariants')) |
+| `provides`, `uses`, `customers`, `partners` | Its contracts and dependencies; see [Contracts and dependencies]($link.page('specification').ref('contracts-and-dependencies')) |
+
+A file SHOULD belong to at most one context. Two contexts that share a kernel MAY both include the kernel's files.
+
+## [Status]($heading.id('status'))
+
+`status` records what the model claims: `proposed` for something planned, `implemented` for something the code does, and `deprecated` for something being removed. An absent status makes no claim. `implemented` is the author's statement; the code and tests a model links to are the evidence a reader can check.
+
+## [Language]($heading.id('language'))
+
+`language` maps each term's id to its definition, as a sentence, or to a mapping:
+
+| Field | Meaning |
+|---|---|
+| `means` | Required. What the term means in this context |
+| `term` | The term as people write it, when that isn't its id with hyphens read as spaces |
+| `not` | Words that MUST NOT stand in for the term in the context's code |
+| `from` | The term in another context that this one is translated from |
+| `status` | As in [Status]($link.page('specification').ref('status')) |
+| `code` | Code references to what implements the term |
+
+A term's id is stable. Renaming how people write a term changes `term`, not the id others refer to.
+
+Words in code are found in identifiers: runs of letters, digits and underscores, anywhere in a file's text, comments included. An identifier is split into words at underscores, where a lowercase letter is followed by an uppercase one, before the last capital of a run of capitals that a lowercase letter follows, and between letters and digits; words compare regardless of case. A `not` entry is split the same way, and at spaces and hyphens, and is found in code when its words appear one after another within one identifier, the last of them also matching with `s` or `es` added. So `cost centre` is found in `costCentreId`, `COST_CENTRE` and `costCentres`, but not in `cost_of_centre`, and `hold` is found in `holds` but not in `holder`.
+
+## [Aggregates]($heading.id('aggregates'))
+
+`aggregates` maps each aggregate's name to a mapping:
+
+| Field | Meaning |
+|---|---|
+| `purpose` | What the aggregate keeps consistent |
+| `root` | A code reference to its root |
+| `status` | As in [Status]($link.page('specification').ref('status')) |
+| `handles` | The commands, from this context's `provides`, that it accepts |
+| `emits` | The events, from this context's `provides`, that it raises |
+
+## [Policies]($heading.id('policies'))
+
+`policies` maps each policy's name to a mapping:
+
+| Field | Meaning |
+|---|---|
+| `when` | Required. The event that sets the policy off: one this context provides, or one it uses |
+| `then` | Required. The commands it issues in response: ones this context provides, or ones it uses |
+| `statement` | The policy as a sentence |
+| `status` | As in [Status]($link.page('specification').ref('status')) |
+
+## [Invariants]($heading.id('invariants'))
+
+`invariants` maps each invariant's name to a mapping:
+
+| Field | Meaning |
+|---|---|
+| `statement` | Required. The rule, as a sentence that is true after every change |
+| `status` | Required, as in [Status]($link.page('specification').ref('status')) |
+| `applies_to` | The aggregates whose boundary holds the rule, once that is decided |
+| `enforced_by` | Code references to the code that keeps it true |
+| `verified_by` | Code references to the tests or checks that show it holds |
+
+An invariant MAY be recorded before anyone knows which aggregate will hold it. A tool MUST NOT present a proposed invariant as a guarantee.
+
+# [Contracts and dependencies]($heading.id('contracts-and-dependencies'))
+
+## [Provides]($heading.id('provides'))
+
+`provides` maps each contract the context owns, by name, to a mapping:
+
+| Field | Meaning |
+|---|---|
+| `kind` | Required. `command`, `query` or `event` |
+| `means` | What the contract carries, in a sentence |
+| `published` | `true` when other contexts may rely on it, so that it changes only by a new version |
+| `version` | Its current version, such as `"2"` or `"2024-06-20"`. Required when `published` is `true` |
+| `status` | As in [Status]($link.page('specification').ref('status')) |
+| `defined_in` | A URI reference to where its format is defined, such as an AsyncAPI or OpenAPI document |
+
+A context owns the commands and queries it accepts and the events it emits. Two versions of a contract that are live at once are two contracts, with two names.
+
+## [Uses]($heading.id('uses'))
+
+`uses` maps each context whose model this one depends on to a mapping:
+
+| Field | Meaning |
+|---|---|
+| `model` | Required. `conform` to adopt the other context's model, `translate` to turn it into this one's, or `share` for a shared kernel |
+| `contracts` | Required with `conform` and `translate`: the contracts used, each optionally pinned to the version this context was built against |
+| `code` | Required with `share`, and allowed only then: globs for the kernel's files |
+
+## [Customers and partners]($heading.id('customers-and-partners'))
+
+`customers` lists the contexts whose needs this one plans for. `partners` lists the contexts this one plans together with, and a partnership MUST be listed by both.
+
+## [Who is upstream]($heading.id('who-is-upstream'))
+
+*Informative.* The owner of a contract is upstream of every context that uses it, whichever way its messages flow. So the direction of each dependency is never declared separately and can never contradict the contracts.
+
+## [External systems]($heading.id('external-systems'))
+
+An external context describes a system outside the organisation from the side of those who depend on it. When several repositories depend on the same external system, they SHOULD describe it once, in a manifest they all import, rather than each describing it separately.
+
+## [Relationships]($heading.id('relationships'))
+
+*Informative.* The relationships of Eric Evans's *Domain-Driven Design* can be read from these fields:
+
+| Relationship | Recorded as |
+|---|---|
+| Open host service, published language | the upstream contract is `published` |
+| Anticorruption layer | the downstream context uses it with `model: translate` |
+| Conformist | the downstream context uses it with `model: conform` |
+| Customer and supplier | the upstream context lists the downstream one in `customers` |
+| Partnership | both contexts list each other in `partners` |
+| Shared kernel | both contexts use each other with `model: share` |
+
+These are what the files record, not judgements about the teams. Whether a conformist conforms by choice, or because its upstream won't negotiate, isn't recorded.
+
+# [Rules]($heading.id('rules'))
+
+A tool checks a repository's model at up to four levels and reports each separately, because each establishes something different. Each rule has an id, which a tool SHOULD use when it reports a breach.
+
+| Level | Establishes |
+|---|---|
+| 1. Structure | each file is well formed and valid against the schema |
+| 2. References | everything the files refer to exists, and the landscape they describe has no structural faults |
+| 3. Repository links | the files agree with the code they point at |
+| 4. Evidence | the code and tests linked as evidence run and pass |
+
+A tool MAY stop after level 1 when it fails, since the later levels rely on valid files. Passing every level establishes that the model is consistent with itself and the code; it doesn't establish that the domain is modelled well. The prose of `purpose`, `scope`, `means` and `statement` is for people and agents to read, and this version defines no rules about it.
+
+## [Level 1: structure]($heading.id('level-1-structure'))
+
+| Rule | A model breaks it when |
+|---|---|
+| [`invalid-yaml`]($link.page('checks').ref('invalid-yaml')) | a file isn't one YAML 1.2 document, repeats a key, or uses an anchor, alias or tag |
+| [`invalid-document`]($link.page('checks').ref('invalid-document')) | a file isn't valid against the schema |
+| [`missing-file`]($link.page('checks').ref('missing-file')) | a context file, or an import the tool was asked to read, can't be read |
+
+## [Level 2: references]($heading.id('level-2-references'))
+
+| Rule | A model breaks it when |
+|---|---|
+| [`duplicate-id`]($link.page('checks').ref('duplicate-id')) | two manifests have the same `id` |
+| [`import-mismatch`]($link.page('checks').ref('import-mismatch')) | an imported manifest's `id` isn't the id it was imported under |
+| [`unknown-manifest`]($link.page('checks').ref('unknown-manifest')) | a reference names a manifest that is neither this one nor imported |
+| [`unknown-context`]($link.page('checks').ref('unknown-context')) | a reference names a context its manifest doesn't define |
+| [`unknown-contract`]($link.page('checks').ref('unknown-contract')) | a `uses` entry, an aggregate or a policy names a contract its owner doesn't provide |
+| [`wrong-contract-kind`]($link.page('checks').ref('wrong-contract-kind')) | an aggregate handles something other than a command or emits something other than an event, or a policy's `when` isn't an event or its `then` isn't a command |
+| [`unknown-term`]($link.page('checks').ref('unknown-term')) | a `from` names a term its context doesn't define |
+| [`unknown-aggregate`]($link.page('checks').ref('unknown-aggregate')) | an invariant applies to an aggregate its context doesn't define |
+| [`unpublished-contract`]($link.page('checks').ref('unpublished-contract')) | a context uses a contract that isn't published, unless the two contexts are partners or share a kernel |
+| [`outdated-contract`]($link.page('checks').ref('outdated-contract')) | a context pins a contract to a version other than the one its owner gives |
+| [`deprecated-reference`]($link.page('checks').ref('deprecated-reference')) | a context uses a deprecated context or a deprecated contract, or translates from a deprecated term |
+| [`undeclared-use`]($link.page('checks').ref('undeclared-use')) | a policy names another context's contract that this context's `uses` doesn't list for that context |
+| [`core-conforms`]($link.page('checks').ref('core-conforms')) | a context classified `core` uses, with `model: conform`, a context classified otherwise |
+| [`customer-without-use`]($link.page('checks').ref('customer-without-use')) | a context lists, in `customers`, a context whose `uses` doesn't include it |
+| [`one-sided-partnership`]($link.page('checks').ref('one-sided-partnership')) | a context lists a partner that doesn't list it back |
+| [`one-sided-shared-kernel`]($link.page('checks').ref('one-sided-shared-kernel')) | a context shares a kernel with a context that doesn't share one back |
+| [`dependency-cycle`]($link.page('checks').ref('dependency-cycle')) | contexts depend on each other through `uses` in a cycle, and some dependency in it is neither between partners nor a shared kernel |
+| [`implemented-without-evidence`]($link.page('checks').ref('implemented-without-evidence')) | an invariant is `implemented` but has neither `enforced_by` nor `verified_by` |
+
+## [Level 3: repository links]($heading.id('level-3-repository-links'))
+
+| Rule | A model breaks it when |
+|---|---|
+| [`missing-path`]($link.page('checks').ref('missing-path')) | a glob in `code`, a shared kernel's `code` or `implements` matches no file, or a code reference names a file that doesn't exist |
+| [`missing-symbol`]($link.page('checks').ref('missing-symbol')) | a code reference's file doesn't define its symbol, or for a quoted test name, doesn't contain it |
+| [`overlapping-code`]($link.page('checks').ref('overlapping-code')) | a file is in the code of two contexts, unless both have it in the code of a kernel they share |
+| [`avoided-word`]($link.page('checks').ref('avoided-word')) | the code of a context, or code a repository `implements` for it, contains a word one of its terms lists in `not` |
+
+Deciding whether a file *defines* a symbol depends on its language, so a tool decides it as well as it can, and SHOULD NOT accept a mere mention, such as a call or a comment, as a definition.
+
+## [Level 4: evidence]($heading.id('level-4-evidence'))
+
+Level 4 runs the code and tests that `enforced_by` and `verified_by` point at. This version defines no rules for how; a project's own test runner does it.
+
+# [Versions of this specification]($heading.id('versions-of-this-specification'))
+
+While the specification is at 0.x, each minor version MAY change what a file means, so `ddd_spec_version` names the minor version a file follows. From 1.0, a minor version only adds optional fields and rules, so a file valid under 1.n stays valid under 1.n+1, and a change that would break a file waits for the next major version.
+
+Each version's schema is published at `https://benomahony.github.io/ddd-spec/v<version>/ddd.schema.json`, and its text alongside it, and neither ever changes once released.
+
+# [Out of scope]($heading.id('out-of-scope'))
+
+*Informative.* Some parts of domain-driven design are left out of this version on purpose.
+
+* **Subdomains as separate from contexts.** A context's `classification` records what matters for checking: whether it is core. Subdomains that cut across contexts can be added in a later version if models need them.
+* **Entities and value objects.** The code describes them better than a model file could, and a file that repeated them would fall out of date first. A term's `code` and an aggregate's `root` point at them instead.
+* **Teams and how they interact.** `owner` names the accountable team; how teams collaborate belongs to tools built for it.
+* **Checks of prose.** Whether a definition explains anything, or a purpose matches the code, needs judgement that no deterministic rule gives.

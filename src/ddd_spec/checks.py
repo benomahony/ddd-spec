@@ -37,7 +37,7 @@ def check_model(manifests: list[Manifest]) -> list[Finding]:
     landscape = Landscape(manifests)
     findings = duplicate_ids(manifests) + imports(manifests) + implements(manifests, landscape)
     for context in landscape.contexts.values():
-        findings += references(context, landscape) + aggregates(context) + agreements(context, landscape) + invariants(context)
+        findings += references(context, landscape) + aggregates(context) + policies(context, landscape) + agreements(context, landscape) + invariants(context)
     return findings + cycles(landscape.contexts)
 
 
@@ -101,7 +101,8 @@ def references(context: Context, landscape: Landscape) -> list[Finding]:
         if provider.data.get("status") == "deprecated":
             findings.append(deprecated(context, provider.id, "uses", reference))
         provided = provider.data.get("provides", {})
-        for index, name in enumerate(use.get("contracts", [])):
+        for index, pinned in enumerate(use.get("contracts", [])):
+            name, _, wanted = pinned.partition("@")
             contract = provided.get(name)
             if contract is None:
                 findings.append(context.finding("unknown-contract", f"{provider.id} doesn't provide {name}; add it to its provides, or correct the name", "uses", reference, "contracts", index))
@@ -109,10 +110,43 @@ def references(context: Context, landscape: Landscape) -> list[Finding]:
                 findings.append(deprecated(context, f"{provider.id}'s {name}", "uses", reference, "contracts", index))
             elif not contract.get("published") and use["model"] != "share" and not (lists(context, provider, "partners") and lists(provider, context, "partners")):
                 findings.append(context.finding("unpublished-contract", f"{provider.id} hasn't published {name}, so it can change without warning; ask its owner to publish it, or share a kernel instead", "uses", reference, "contracts", index))
+            elif wanted and contract.get("version") != wanted:
+                current = f"is at version {contract['version']}" if "version" in contract else "has no version"
+                findings.append(context.finding("outdated-contract", f"{context.id} was built against {name}@{wanted}, but {provider.id}'s {name} {current}; update this context and its pin", "uses", reference, "contracts", index))
         domain = context.data.get("classification", {}).get("domain")
         theirs = provider.data.get("classification", {}).get("domain")
         if use["model"] == "conform" and domain == "core" and theirs is not None and theirs != "core":
             findings.append(context.finding("core-conforms", f"{context.id} is core but conforms to {provider.id}, which is {theirs}; translate its model into this one's instead", "uses", reference, "model"))
+    return findings
+
+
+def contract(context: Context, reference: str, landscape: Landscape, *keys: str | int) -> tuple[Context | None, dict | None, list[Finding]]:
+    owner_ref, _, name = reference.rpartition("#")
+    owner, problems = landscape.lookup(context, owner_ref, *keys) if owner_ref else (context, [])
+    if owner is None:
+        return None, None, problems
+    provided = owner.data.get("provides", {}).get(name)
+    if provided is None:
+        return owner, None, [context.finding("unknown-contract", f"{owner.id} doesn't provide {name}; add it to its provides, or correct the name", *keys)]
+    return owner, provided, []
+
+
+def policies(context: Context, landscape: Landscape) -> list[Finding]:
+    findings = []
+    used = {context.ref(reference): {pinned.partition("@")[0] for pinned in use.get("contracts", [])} for reference, use in context.data.get("uses", {}).items()}
+    for name, policy in context.data.get("policies", {}).items():
+        steps = [("when", policy["when"], "event", ("policies", name, "when"))]
+        steps += [("then", reference, "command", ("policies", name, "then", index)) for index, reference in enumerate(policy["then"])]
+        for field, reference, kind, keys in steps:
+            owner, provided, problems = contract(context, reference, landscape, *keys)
+            findings += problems
+            if provided is None:
+                continue
+            contract_name = reference.rpartition("#")[2]
+            if provided["kind"] != kind:
+                findings.append(context.finding("wrong-contract-kind", f"{contract_name} is {article(provided['kind'])}, but a policy's {field} names {article(kind)}; correct its kind, or name another contract", *keys))
+            elif owner.id != context.id and contract_name not in used.get(owner.id, set()):
+                findings.append(context.finding("undeclared-use", f"the policy relies on {owner.id}'s {contract_name}, but {context.id} doesn't list it in uses; add it there", *keys))
     return findings
 
 
@@ -215,13 +249,14 @@ def strongly_connected(edges: dict[str, set[str]]) -> Iterator[set[str]]:
                 low[node] = min(low[node], index[child])
 
 
-def consumers(context: Context, contexts: dict[str, Context]) -> dict[str, list[str]]:
-    used: dict[str, list[str]] = {}
+def consumers(context: Context, contexts: dict[str, Context]) -> dict[str, list[dict[str, str]]]:
+    used: dict[str, list[dict[str, str]]] = {}
     for other in contexts.values():
         for reference, use in other.data.get("uses", {}).items():
             if other.ref(reference) == context.id:
-                for name in use.get("contracts", []):
-                    used.setdefault(name, []).append(other.id)
+                for pinned in use.get("contracts", []):
+                    name, _, version = pinned.partition("@")
+                    used.setdefault(name, []).append({"context": other.id, "model": use["model"]} | ({"built_against": version} if version else {}))
     return used
 
 
@@ -307,26 +342,36 @@ def check_repository(manifests: list[Manifest], landscape_manifests: list[Manife
                 claims.setdefault(name, []).append(context)
             for reference, keys in code_refs(context):
                 findings += symbol(context, reference, keys)
-            findings += avoided_words(context)
+            for reference, use in context.data.get("uses", {}).items():
+                for index, pattern in enumerate(use.get("code", [])):
+                    if not matched(context.root, pattern):
+                        findings.append(context.finding("missing-path", f"no file in {context.root} matches {pattern}; correct the glob, or remove it", "uses", reference, "code", index))
+            findings += avoided_words(context, context.root, context.data.get("code", []))
         for target, part in manifest.document.data.get("implements", {}).items():
             for index, pattern in enumerate(part["code"]):
                 if not matched(manifest.root, pattern):
                     findings.append(manifest.document.finding("missing-path", f"no file in {manifest.root} matches {pattern}; correct the glob, or remove it", "implements", target, "code", index))
             for name in claimed(manifest.root, part["code"]):
                 claims.setdefault(name, []).append(target)
+            if target in landscape.contexts:
+                findings += avoided_words(landscape.contexts[target], manifest.root, part["code"])
         for name, claimants in sorted(claims.items()):
             unique = list({claimant.id if isinstance(claimant, Context) else claimant: claimant for claimant in claimants}.values())
-            if len(unique) > 1 and not kernel(unique, landscape):
+            if len(unique) > 1 and not kernel(unique, name, landscape):
                 ids = [claimant.id if isinstance(claimant, Context) else claimant for claimant in unique]
                 last = unique[-1]
                 where = last.finding if isinstance(last, Context) else lambda check, message: manifest.document.finding(check, message, "implements", last)
-                findings.append(where("overlapping-code", f"{name} is in the code of {' and '.join(ids)}, which share no kernel; give each file to one context"))
+                findings.append(where("overlapping-code", f"{name} is in the code of {' and '.join(ids)}, but not in a kernel they share; give it to one context, or add it to their shared kernel's code"))
     return findings
 
 
-def kernel(claimants: list[Context | str], landscape: Landscape) -> bool:
+def shared_code(a: Context, b: Context, name: str) -> bool:
+    return any(a.ref(reference) == b.id and use["model"] == "share" and covers(use["code"], name) for reference, use in a.data.get("uses", {}).items())
+
+
+def kernel(claimants: list[Context | str], name: str, landscape: Landscape) -> bool:
     contexts = [claimant if isinstance(claimant, Context) else landscape.contexts.get(claimant) for claimant in claimants]
-    return all(a is not None and b is not None and shares(a, b) and shares(b, a) for a in contexts for b in contexts if a is not b)
+    return all(a is not None and b is not None and (shared_code(a, b, name) or shared_code(b, a, name)) for a in contexts for b in contexts if a is not b)
 
 
 def symbol(context: Context, reference: str, keys: tuple[str | int, ...]) -> list[Finding]:
@@ -343,13 +388,18 @@ def words(identifier: str) -> list[str]:
     return [word.lower() for word in re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+", identifier)]
 
 
-def avoided_words(context: Context) -> list[Finding]:
+def contains(found: list[str], phrase: list[str]) -> bool:
+    endings = {phrase[-1], phrase[-1] + "s", phrase[-1] + "es"}
+    return any(found[start : start + len(phrase) - 1] == phrase[:-1] and found[start + len(phrase) - 1] in endings for start in range(len(found) - len(phrase) + 1))
+
+
+def avoided_words(context: Context, root: Path | None, patterns: list[str]) -> list[Finding]:
     avoided = [(entry.get("term", term.replace("-", " ")), word, words(word)) for term, entry in context.data.get("language", {}).items() if isinstance(entry, dict) for word in entry.get("not", [])]
-    if not avoided or context.root is None:
+    if not avoided or root is None:
         return []
     findings = []
-    for name in claimed(context.root, context.data.get("code", [])):
-        path = context.root / name
+    for name in claimed(root, patterns):
+        path = root / name
         text = path.read_text(errors="replace")
         if "\0" in text:
             continue
@@ -358,7 +408,7 @@ def avoided_words(context: Context) -> list[Finding]:
             for match in re.finditer(r"[A-Za-z_][A-Za-z0-9_]*", line):
                 found = words(match.group())
                 for term, word, phrase in avoided:
-                    if word not in reported and any(found[start : start + len(phrase)] == phrase for start in range(len(found))):
+                    if word not in reported and contains(found, phrase):
                         reported.add(word)
                         findings.append(Finding(str(path), number, match.start() + 1, "avoided-word", f"'{word}' stands in for '{term}' in {context.id}; say {term}"))
     return findings

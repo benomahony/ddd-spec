@@ -17,12 +17,16 @@
 				</a>
 				<ul>
 					<li><a href="$site.page('').link()">Introduction</a></li>
-					<li><a href="$site.page('format').link()">Format</a></li>
-					<li><a href="$site.page('conformance').link()">Conformance</a></li>
+					<li><a href="$site.page('getting-started').link()">Getting started</a></li>
+					<li><a href="$site.page('guide').link()">Modelling guide</a></li>
+					<li><a href="$site.page('specification').link()">Specification</a></li>
+					<li><a href="$site.page('checks').link()">Checks</a></li>
+					<li><a href="$site.page('cli').link()">Command line</a></li>
 				</ul>
 				<div class="external">
 					<a href="https://github.com/benomahony/ddd-spec">Source</a>
-					<a href="https://github.com/benomahony/ddd-spec/blob/main/ddd.schema.json">Schema</a>
+					<a href="https://github.com/benomahony/ddd-spec/tree/main/spec">Schemas</a>
+					<a href="https://github.com/benomahony/ddd-spec/releases">Releases</a>
 				</div>
 			</nav>
 			<main id="main">

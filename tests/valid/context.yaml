@@ -31,6 +31,12 @@ aggregates:
     status: implemented
     handles: [ReserveFunds]
     emits: [budgeting.budget-exceeded.v2]
+policies:
+  reserve-approved-expenses:
+    when: acme.expenses/claims#ExpenseApproved
+    then: [ReserveFunds]
+    statement: Every approved expense for an event reserves funds against its budget.
+    status: implemented
 invariants:
   within-allocation:
     statement: Active commitments never exceed the approved allocation.
@@ -53,9 +59,10 @@ provides:
 uses:
   acme.expenses/claims:
     model: translate
-    contracts: [ExpenseApproved]
+    contracts: [ExpenseApproved@1]
     x-adapter: src/budgeting/claims_adapter.py
   ledger:
     model: share
+    code: [src/money/**]
 customers: [reporting]
 partners: [ledger]

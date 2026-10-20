@@ -13,10 +13,11 @@ from jsonschema.exceptions import best_match
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.error import MarkedYAMLError
+from ruamel.yaml.events import AliasEvent
 
 MANIFEST = "ddd.yaml"
 FORMAT_PAGE = "https://benomahony.github.io/ddd-spec/format/"
-SCHEMAS = {folder.name.removeprefix("v"): json.loads(folder.joinpath("ddd.schema.json").read_text()) for folder in files("ddd_spec").joinpath("schema").iterdir()}
+SCHEMAS = {folder.name.removeprefix("v"): json.loads(folder.joinpath("ddd.schema.json").read_text()) for folder in files("ddd_spec").joinpath("spec").iterdir()}
 LATEST = max(SCHEMAS, key=lambda version: tuple(map(int, version.split("."))))
 
 
@@ -132,6 +133,10 @@ def read(location: str) -> str | None:
 
 def parse(location: str, text: str) -> tuple[CommentedMap | None, list[Finding]]:
     try:
+        for event in YAML(typ="rt").parse(text):
+            if isinstance(event, AliasEvent) or getattr(event, "anchor", None) or getattr(event, "tag", None):
+                line, column = event.start_mark.line + 1, event.start_mark.column + 1
+                return None, [Finding(location, line, column, "invalid-yaml", "anchors, aliases and tags aren't allowed, so every reader sees the same values; write the value out")]
         data = YAML(typ="rt").load(text)
     except MarkedYAMLError as error:
         mark = error.problem_mark or error.context_mark

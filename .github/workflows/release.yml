@@ -1,8 +1,8 @@
 name: Release
 
 # A commit that passes CI on main and changes the validator or the schema is released. Its
-# version is the latest spec version in schema/ with the next patch number, so adding
-# schema/v0.2 releases 0.2.0. A commit that changes neither, such as a README edit, is not
+# version is the latest spec version in spec/ with the next patch number, so adding
+# spec/v0.2 releases 0.2.0. A commit that changes neither, such as a README edit, is not
 # released. Run this by hand to release the current commit regardless.
 on:
   workflow_run:
@@ -52,11 +52,11 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          spec=$(ls -d schema/v*/ | sort -V | tail -n1)
-          spec=${spec#schema/v}
+          spec=$(ls -d spec/v*/ | sort -V | tail -n1)
+          spec=${spec#spec/v}
           spec=${spec%/}
           latest=$(git tag --list "v$spec.*" --sort=-v:refname | head -n1)
-          if [ "$GITHUB_EVENT_NAME" = workflow_run ] && [ -n "$latest" ] && git diff --quiet "$latest" HEAD -- src schema pyproject.toml uv.lock; then
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ] && [ -n "$latest" ] && git diff --quiet "$latest" HEAD -- src spec pyproject.toml uv.lock; then
             echo "::notice::Nothing released since $latest changed the validator or the schema."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -99,7 +99,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
-          gh release create "v$VERSION" dist/* "schema/v${VERSION%.*}/ddd.schema.json"
+          gh release create "v$VERSION" dist/* "spec/v${VERSION%.*}/ddd.schema.json"
           --repo "$GITHUB_REPOSITORY" --target "${{ needs.version.outputs.commit }}"
           --title "ddd-spec v$VERSION" --generate-notes
       # Needs PyPI's trusted publishing set up for this workflow, then the PUBLISH_TO_PYPI variable set to true.

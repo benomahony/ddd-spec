@@ -4,6 +4,6 @@ contexts:
   budgeting:
     purpose: Control the full committed cost of an event.
     uses:
-      ledger: { model: share }
+      ledger: { model: share, code: ["src/money/**"] }
   ledger:
     purpose: Record every movement of money.

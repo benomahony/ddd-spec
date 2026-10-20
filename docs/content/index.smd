@@ -1,11 +1,9 @@
 ---
 .title = "ddd-spec",
 .description = "A domain model that lives next to the code: which bounded contexts a repository holds, what their words mean, which rules every change must preserve, and how the contexts depend on each other. People, coding agents and tools all read the same files.",
-.date = .date("2026-10-20T00:00:03"),
+.date = .date("2026-10-20T00:00:06"),
 .layout = "index.shtml",
 ---
-
-
 
 ```yaml
 # ddd.yaml
@@ -38,17 +36,47 @@ invariants:
     status: implemented
     enforced_by: [src/budgeting/budget.py#EventBudget.reserve]
     verified_by: [tests/test_budget.py#test_rejects_commitment_above_allocation]
+provides:
+  ReserveFunds: { kind: command }
 uses:
   acme.expenses/claims:
     model: translate
-    contracts: [ExpenseApproved]
+    contracts: [ExpenseApproved@1]
+policies:
+  reserve-approved-expenses:
+    when: acme.expenses/claims#ExpenseApproved
+    then: [ReserveFunds]
 ```
 
 # [Principles]($heading.id('principles'))
 
-1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules, the evidence that they hold, and who depends on it. `ddd-spec explain` does exactly that.
-2. **Each fact is declared once, by whoever owns it.** A context lists the contracts it provides and the contracts it uses. Who is upstream follows from those facts rather than being declared beside them.
+1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules, the evidence that they hold, and who depends on it. `ddd-spec explain` prints exactly that.
+2. **Each fact is declared once, by whoever owns it.** A context lists the contracts it provides and the contracts it uses. Who is upstream follows from those facts, so it can never contradict them.
 3. **Words belong to a context.** The same word may mean different things in different contexts, and a translation between them is written down.
-4. **Absent means undocumented, but a name must resolve.** A model can describe as much or as little as is known. Every manifest a file refers to is declared, so a misspelt name is an error, not an unknown.
+4. **Absent means undocumented, but a name must resolve.** A model can describe as much or as little as is known, yet a misspelt name is an error, not an unknown.
 5. **Claims are not evidence.** `implemented` is what the author says; the linked code and tests are what a reader can check.
 6. **Contracts live elsewhere.** A contract points at its OpenAPI or AsyncAPI definition instead of repeating it.
+
+# [Getting started]($heading.id('getting-started'))
+
+Write a `ddd.yaml` at the root of your repository, then check it and the code it points at:
+
+```sh
+uvx ddd-spec check
+```
+
+Before changing a file, ask which contexts it belongs to and what they promise:
+
+```sh
+uvx ddd-spec explain src/budgeting/budget.py
+```
+
+Until the validator is on PyPI, run it with `uvx --from git+https://github.com/benomahony/ddd-spec ddd-spec`.
+
+# [Documentation]($heading.id('documentation'))
+
+* [Getting started](https://benomahony.github.io/ddd-spec/getting-started/): model one context, link it to the code, and grow from there.
+* [Modelling guide](https://benomahony.github.io/ddd-spec/guide/): choosing contexts, writing their language, recording rules and evidence, and connecting repositories.
+* [Specification 0.1](https://benomahony.github.io/ddd-spec/specification/): every field and rule, normatively.
+* [Checks](https://benomahony.github.io/ddd-spec/checks/): every rule a tool checks, each with a model that breaks it.
+* [Command line](https://benomahony.github.io/ddd-spec/cli/): `ddd-spec check` and `ddd-spec explain`.

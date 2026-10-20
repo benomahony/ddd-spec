@@ -1,0 +1,216 @@
+---
+.title = "Modelling guide",
+.description = "Choosing contexts, writing their language, recording rules and evidence, connecting repositories, and keeping a model true.",
+.date = .date("2026-10-20T00:00:04"),
+.layout = "page.shtml",
+---
+
+The [specification]($link.page('specification')) says what each field means. This guide is about the judgement calls: where to draw a context's boundary, what makes a definition useful, when to translate another context's model, and how to keep the model true as the code changes.
+
+# [Choosing contexts]($heading.id('contexts'))
+
+A bounded context is the part of a system in which each word keeps one meaning. The clearest sign of a boundary is a word that changes meaning: if "customer" means the party that owes money in billing and the person who receives a parcel in shipping, those are two contexts, even when one team owns both. Other signs are parts that change at different rates, or that different people decide about.
+
+You don't need to model a whole system to start. Model the context you are changing, and add others as they become relevant: a missing context is undocumented, not wrong.
+
+Give each context its `code`. That is what lets `ddd-spec explain` answer "which context am I in?" for a file. Globs are read in order, and a glob starting with `!` takes files back out:
+
+```yaml
+code:
+  - src/**
+  - "!src/infer.zig"
+  - "!src/lsp.zig"
+```
+
+A file belongs to one context. When two contexts genuinely share code, record a [shared kernel](#shared-kernels) and list its files there.
+
+`classification` says whether a context is `core`, where the organisation competes, `supporting`, or `generic`, where a bought or shared solution would do. It matters because a core context should own its model: the validator reports a core context that conforms to a context that isn't core.
+
+# [Writing the language]($heading.id('language'))
+
+The language is the most valuable part of a model. It is what a person new to the code, or an agent, gets wrong first.
+
+A good definition says what the term is and draws its edge: "Funds reserved for approved expenditure, *whether or not it has been paid*" stops a reader treating a commitment as a payment. A definition that restates the term, such as "A commitment is a commitment", passes every check and helps nobody.
+
+Each term is keyed by an id that never changes, so other contexts can refer to it. When the way people write the term differs from its id, say so in `term`:
+
+```yaml
+language:
+  available-budget:
+    term: Available budget
+    means: The event's approved allocation minus its active commitments.
+```
+
+List in `not` the words that cause confusion: synonyms people reach for, or another context's word for something nearby. The validator reports them anywhere in the context's code, with plurals, so `not: [hold]` catches `self.holds`.
+
+When a term is another context's term translated into this one, record where it comes from. That makes the translation, and the anticorruption layer behind it, visible:
+
+```yaml
+language:
+  commitment:
+    means: Funds reserved for approved expenditure, whether or not it has been paid.
+    from: acme.expenses/claims#approved-expense
+```
+
+To retire a word, mark it `status: deprecated` rather than deleting it at once. Contexts that still translate from it are then told to move.
+
+# [Recording rules and evidence]($heading.id('rules'))
+
+An invariant is a rule that is true after every change. Write it as a plain sentence a reviewer could check a change against, and give it an honest status:
+
+* `proposed` for a rule the business wants that the code doesn't keep yet;
+* `implemented` for a rule the code keeps, with `enforced_by` pointing at the code that keeps it and `verified_by` at a test that shows it;
+* `deprecated` for a rule on its way out.
+
+`implemented` is a claim, and the links are its evidence. The validator reports an implemented invariant with no evidence, and checks that each linked file defines the symbol named. Tests that their language names with a string are linked by that string in quotes:
+
+```yaml
+invariants:
+  fixes-apply-only-where-made:
+    statement: A fix is written only over the bytes it was made against.
+    status: implemented
+    verified_by:
+      - 'src/main.zig#"a fix is written only over the bytes it was made against"'
+```
+
+Record the rule before you know which aggregate will hold it. `applies_to` can wait until that is decided, and an aggregate can wait until the boundary is clear:
+
+```yaml
+aggregates:
+  event-budget:
+    root: src/budgeting/budget.py#EventBudget
+    handles: [ReserveFunds]
+    emits: [BudgetExceeded]
+```
+
+A policy records what a context does when an event arrives, which is often where the interesting rules of an event-driven system live:
+
+```yaml
+policies:
+  reserve-approved-expenses:
+    when: expenses#ExpenseApproved
+    then: [ReserveFunds]
+    statement: Every approved expense for an event reserves funds against its budget.
+```
+
+# [Contracts and dependencies]($heading.id('dependencies'))
+
+A context owns the commands and queries it accepts and the events it emits, and lists them in `provides`. Every context that uses one is downstream of its owner, so a model never says who is upstream; it follows from the contracts.
+
+Publish a contract, with a version, when other contexts may rely on it. From then on it changes only by a new version. While two versions are live at once, they are two contracts with two names, such as `expenses.expense-approved.v1` and `expenses.expense-approved.v2`.
+
+A context lists each context it depends on in `uses`, with how it treats that context's model:
+
+| Model | Choose it when |
+|---|---|
+| `translate` | the other model's words or shape differ from yours, so a layer turns them into your own. This is the usual choice, and the safe one for a core context |
+| `conform` | adopting the other model as it is costs less than translating it, typically for generic or supporting work |
+| `share` | two contexts maintain some code together and change it together; see [shared kernels](#shared-kernels) |
+
+Pin each contract you use to the version you were built against, as `ExpenseApproved@1`. When its owner moves to a new version, the validator reports every context still built against the old one.
+
+`customers` records the contexts an upstream context plans for, and `partners` the contexts that plan together. Read together with `uses`, these give the relationships of Evans's *Domain-Driven Design*, from open host service to conformist; the [specification]($link.page('specification').ref('relationships')) has the table.
+
+# [Shared kernels]($heading.id('shared-kernels'))
+
+A shared kernel is code two contexts own together. Each records it, with the files they share:
+
+```yaml
+uses:
+  money:
+    model: share
+    code: ["src/money/**"]
+```
+
+Only those files may belong to both contexts. Keep a kernel small: it ties the two contexts' changes together, so everything in it is something both teams agree to change in step.
+
+# [Many repositories]($heading.id('repositories'))
+
+Each repository has its own manifest, with an id unique across the organisation. A manifest refers to another's contexts by their full id, `<manifest id>/<context>`, and lists every manifest it refers to in `imports`:
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+imports:
+  acme.expenses: https://raw.githubusercontent.com/acme/expenses/main/ddd.yaml
+  acme.ledger: ../ledger/ddd.yaml
+contexts:
+  budgeting: domains/budgeting.yaml
+```
+
+The validator reads imports that are paths. It fetches imports that are URLs only with `--remote`, and until it does, it leaves references into them unchecked. A misspelt manifest id is always an error, because every manifest a file refers to must be imported.
+
+A context implemented by several repositories is defined once, in one manifest. The others say which of their files they hold for it, so `explain` can answer for those files too:
+
+```yaml
+implements:
+  acme.ledger/postings:
+    code: ["services/posting-worker/**"]
+```
+
+Describe external systems, such as a payment provider, as contexts with `external: true`, from the side of those who depend on them. When several repositories depend on the same one, describe it once, in a manifest they all import:
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.externals
+contexts:
+  stripe:
+    purpose: Take card payments for us.
+    external: true
+    provides:
+      charge.succeeded: { kind: event, published: true, version: "2024-06-20" }
+```
+
+# [Keeping the model true]($heading.id('keeping-it-true'))
+
+A model is only useful while it matches the code, so make reading it and checking it part of the work.
+
+## [With coding agents]($heading.id('agents'))
+
+Tell agents about the model in the file they read for instructions, such as `AGENTS.md` or `CLAUDE.md`:
+
+```markdown
+## Domain model
+
+This repository describes its domain model in `ddd.yaml`.
+
+* Before changing a file, run `uvx ddd-spec explain <file>`. Use the terms it defines, never the words it lists under `not`, and keep every invariant it lists true.
+* When a change adds a concept, a rule or a dependency between contexts, update the model in the same change.
+* Before finishing, run `uvx ddd-spec check` and fix what it reports.
+```
+
+## [In CI]($heading.id('ci'))
+
+Run the check on every pull request, so a change that breaks the model, or a model that falls behind the code, is caught in review:
+
+```yaml
+name: Domain model
+on: [push, pull_request]
+jobs:
+  ddd-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
+      - run: uvx ddd-spec check
+```
+
+## [Before each commit]($heading.id('pre-commit'))
+
+With [pre-commit](https://pre-commit.com), add a local hook:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: ddd-spec
+        name: ddd-spec check
+        entry: uvx ddd-spec check
+        language: system
+        pass_filenames: false
+        always_run: true
+```
+
+# [What to leave out]($heading.id('leave-out'))
+
+A model earns its keep by recording what the code can't say for itself. Leave out what the code already says better: every entity and value object, every field, every method. Point at them from a term's `code` or an aggregate's `root` instead. A model that repeats the code is the first thing to fall out of date.

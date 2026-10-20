@@ -1,0 +1,694 @@
+---
+.title = "Checks",
+.description = "Every rule a tool checks, each with a model that breaks it.",
+.date = .date("2026-10-20T00:00:02"),
+.layout = "page.shtml",
+---
+
+Every rule of the [specification]($link.page('specification').ref('rules')), with a model that breaks it and what `ddd-spec check` reports for it. Each example is a test of the validator, so what this page shows is what the validator does.
+
+# [Level 1: structure]($heading.id('level-1-structure'))
+
+## [`invalid-yaml`]($heading.id('invalid-yaml'))
+
+A model breaks it when a file isn't one YAML 1.2 document, repeats a key, or uses an anchor, alias or tag.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts: [budgeting
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:4:1  error  invalid-yaml  expected ',' or ']', but got '<stream end>'; fix the YAML so it parses
+ddd-spec: 1 problem in the files themselves; fix them first
+```
+
+## [`invalid-document`]($heading.id('invalid-document'))
+
+A model breaks it when a file isn't valid against the schema.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    code: ["src/**"]
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:4:3  error  invalid-document  'purpose' is a required property; see https://benomahony.github.io/ddd-spec/format/
+ddd-spec: 1 problem in the files themselves; fix them first
+```
+
+## [`missing-file`]($heading.id('missing-file'))
+
+A model breaks it when a context file, or an import the tool was asked to read, can't be read.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+imports:
+  acme.ledger: ../ledger/ddd.yaml
+contexts:
+  budgeting: domains/budgeting.yaml
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:4:3  error  missing-file  ../ledger/ddd.yaml can't be read; correct the import, or pass --remote to fetch URLs
+ddd.yaml:6:3  error  missing-file  domains/budgeting.yaml can't be read; create it, or correct the path
+ddd-spec: 2 problems in the files themselves; fix them first
+```
+
+# [Level 2: references]($heading.id('level-2-references'))
+
+## [`duplicate-id`]($heading.id('duplicate-id'))
+
+A model breaks it when two manifests have the same `id`.
+
+`events/ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  events:
+    purpose: Run the events part of the business.
+```
+
+`travel/ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  travel:
+    purpose: Run the travel part of the business.
+```
+
+```console
+$ ddd-spec check events/ddd.yaml travel/ddd.yaml
+travel/ddd.yaml:2:1  error  duplicate-id  'acme.events' is already the id of events/ddd.yaml; give each manifest its own id
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`import-mismatch`]($heading.id('import-mismatch'))
+
+A model breaks it when an imported manifest's `id` isn't the id it was imported under.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+imports:
+  acme.ledger: ledger/ddd.yaml
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+```
+
+`ledger/ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.ledgers
+contexts:
+  postings:
+    purpose: Record every movement of money.
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:4:3  error  import-mismatch  the manifest imported as 'acme.ledger' has the id 'acme.ledgers'; import it under its own id
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 1 context
+```
+
+## [`unknown-manifest`]($heading.id('unknown-manifest'))
+
+A model breaks it when a reference names a manifest that is neither this one nor imported.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+imports:
+  acme.expenses: https://example.com/acme/expenses/ddd.yaml
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    uses:
+      acme.expens/claims: { model: translate, contracts: [ExpenseApproved] }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:9:7  error  unknown-manifest  acme.events doesn't import a manifest called 'acme.expens'; add it to imports, or correct the id
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 1 context
+```
+
+## [`unknown-context`]($heading.id('unknown-context'))
+
+A model breaks it when a reference names a context its manifest doesn't define.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    partners: [ledger]
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:6:16  error  unknown-context  acme.events has no context called 'ledger'; check the spelling, or add it to that manifest
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 1 context
+```
+
+## [`unknown-contract`]($heading.id('unknown-contract'))
+
+A model breaks it when a `uses` entry, an aggregate or a policy names a contract its owner doesn't provide.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    uses:
+      expenses: { model: translate, contracts: [ExpenseRejected] }
+    aggregates:
+      event-budget: { emits: [BudgetExceeded] }
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    provides:
+      ExpenseApproved: { kind: event, published: true, version: "1" }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:7:49  error  unknown-contract  acme.events/expenses doesn't provide ExpenseRejected; add it to its provides, or correct the name
+ddd.yaml:9:31  error  unknown-contract  acme.events/budgeting doesn't provide BudgetExceeded; add it to provides, or correct the name
+ddd-spec: 2 problems in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`wrong-contract-kind`]($heading.id('wrong-contract-kind'))
+
+A model breaks it when an aggregate handles something other than a command or emits something other than an event, or a policy's `when` isn't an event or its `then` isn't a command.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    provides:
+      BudgetExceeded: { kind: event }
+    aggregates:
+      event-budget: { handles: [BudgetExceeded] }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:9:33  error  wrong-contract-kind  BudgetExceeded is an event, but an aggregate only handles a command; correct its kind, or move it
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 1 context
+```
+
+## [`unknown-term`]($heading.id('unknown-term'))
+
+A model breaks it when a `from` names a term its context doesn't define.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure.
+        from: expenses#claim
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    language:
+      approved-expense: An expense a manager has accepted for reimbursement.
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:9:9  error  unknown-term  'claim' is not a term in acme.events/expenses's language; add it there, or translate from a term it defines
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`unknown-aggregate`]($heading.id('unknown-aggregate'))
+
+A model breaks it when an invariant applies to an aggregate its context doesn't define.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    invariants:
+      within-allocation:
+        statement: Active commitments never exceed the approved allocation.
+        status: proposed
+        applies_to: [event-budget]
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:10:22  error  unknown-aggregate  acme.events/budgeting has no aggregate called 'event-budget'; add it to aggregates, or correct the name
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 1 context
+```
+
+## [`unpublished-contract`]($heading.id('unpublished-contract'))
+
+A model breaks it when a context uses a contract that isn't published, unless the two contexts are partners or share a kernel.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    uses:
+      expenses: { model: translate, contracts: [ExpenseApproved] }
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    provides:
+      ExpenseApproved: { kind: event }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:7:49  error  unpublished-contract  acme.events/expenses hasn't published ExpenseApproved, so it can change without warning; ask its owner to publish it, or share a kernel instead
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`outdated-contract`]($heading.id('outdated-contract'))
+
+A model breaks it when a context pins a contract to a version other than the one its owner gives.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    uses:
+      expenses: { model: translate, contracts: [ExpenseApproved@1] }
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    provides:
+      ExpenseApproved: { kind: event, published: true, version: "2" }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:7:49  error  outdated-contract  acme.events/budgeting was built against ExpenseApproved@1, but acme.events/expenses's ExpenseApproved is at version 2; update this context and its pin
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`deprecated-reference`]($heading.id('deprecated-reference'))
+
+A model breaks it when a context uses a deprecated context or a deprecated contract, or translates from a deprecated term.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure.
+        from: expenses#claim
+    uses:
+      expenses: { model: translate, contracts: [ExpensePaid] }
+      travel: { model: translate, contracts: [TripBooked] }
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    language:
+      claim: { means: A request to be paid back., status: deprecated }
+    provides:
+      ExpensePaid: { kind: event, published: true, version: "1", status: deprecated }
+  travel:
+    purpose: Book travel to events.
+    status: deprecated
+    provides:
+      TripBooked: { kind: event, published: true, version: "1" }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:9:9  error  deprecated-reference  acme.events/expenses's term 'claim' is deprecated; move to what replaces it
+ddd.yaml:11:49  error  deprecated-reference  acme.events/expenses's ExpensePaid is deprecated; move to what replaces it
+ddd.yaml:12:7  error  deprecated-reference  acme.events/travel is deprecated; move to what replaces it
+ddd-spec: 3 problems in the model and no problems in its links to the code, across 3 contexts
+```
+
+## [`undeclared-use`]($heading.id('undeclared-use'))
+
+A model breaks it when a policy names another context's contract that this context's `uses` doesn't list for that context.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    provides:
+      ReserveFunds: { kind: command }
+    policies:
+      reserve-approved-expenses:
+        when: expenses#ExpenseApproved
+        then: [ReserveFunds]
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    provides:
+      ExpenseApproved: { kind: event, published: true, version: "1" }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:10:9  error  undeclared-use  the policy relies on acme.events/expenses's ExpenseApproved, but acme.events/budgeting doesn't list it in uses; add it there
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`core-conforms`]($heading.id('core-conforms'))
+
+A model breaks it when a context classified `core` uses, with `model: conform`, a context classified otherwise.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    classification: { domain: core }
+    uses:
+      expenses: { model: conform, contracts: [ExpenseApproved] }
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    classification: { domain: generic }
+    provides:
+      ExpenseApproved: { kind: event, published: true, version: "1" }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:8:19  error  core-conforms  acme.events/budgeting is core but conforms to acme.events/expenses, which is generic; translate its model into this one's instead
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`customer-without-use`]($heading.id('customer-without-use'))
+
+A model breaks it when a context lists, in `customers`, a context whose `uses` doesn't include it.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    customers: [budgeting]
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:8:17  error  customer-without-use  acme.events/budgeting doesn't use any contract of acme.events/expenses; remove it from customers, or record what it uses
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`one-sided-partnership`]($heading.id('one-sided-partnership'))
+
+A model breaks it when a context lists a partner that doesn't list it back.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    partners: [ledger]
+  ledger:
+    purpose: Record every movement of money.
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:6:16  error  one-sided-partnership  acme.events/ledger doesn't list acme.events/budgeting as a partner; a partnership needs both sides, so add it there or remove it here
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`one-sided-shared-kernel`]($heading.id('one-sided-shared-kernel'))
+
+A model breaks it when a context shares a kernel with a context that doesn't share one back.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    uses:
+      ledger: { model: share, code: ["src/money/**"] }
+  ledger:
+    purpose: Record every movement of money.
+```
+
+`src/money/amount.py`
+
+```python
+class Amount:
+    pass
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:7:17  error  one-sided-shared-kernel  acme.events/ledger doesn't share a kernel with acme.events/budgeting; add a use with model share there, or translate here
+ddd.yaml:7:38  error  missing-path  no file in . matches src/money/**; correct the glob, or remove it
+ddd-spec: 1 problem in the model and 1 problem in its links to the code, across 2 contexts
+```
+
+## [`dependency-cycle`]($heading.id('dependency-cycle'))
+
+A model breaks it when contexts depend on each other through `uses` in a cycle, and some dependency in it is neither between partners nor a shared kernel.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    provides:
+      BudgetExceeded: { kind: event, published: true, version: "1" }
+    uses:
+      expenses: { model: translate, contracts: [ExpenseApproved] }
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    provides:
+      ExpenseApproved: { kind: event, published: true, version: "1" }
+    uses:
+      budgeting: { model: translate, contracts: [BudgetExceeded] }
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:9:7  error  dependency-cycle  acme.events/budgeting, acme.events/expenses depend on each other through uses; break the cycle, or make them partners
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+## [`implemented-without-evidence`]($heading.id('implemented-without-evidence'))
+
+A model breaks it when an invariant is `implemented` but has neither `enforced_by` nor `verified_by`.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    invariants:
+      within-allocation:
+        statement: Active commitments never exceed the approved allocation.
+        status: implemented
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:9:9  error  implemented-without-evidence  the invariant is marked implemented but names no code that enforces it and no test that verifies it; add enforced_by or verified_by, or mark it proposed
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 1 context
+```
+
+# [Level 3: repository links]($heading.id('level-3-repository-links'))
+
+## [`missing-path`]($heading.id('missing-path'))
+
+A model breaks it when a glob in `code`, a shared kernel's `code` or `implements` matches no file, or a code reference names a file that doesn't exist.
+
+`.hidden/src/budgeting/budget.py`
+
+```python
+
+```
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    code: ["src/budgeting/**"]
+    aggregates:
+      event-budget:
+        root: src/budgeting/budget.py#EventBudget
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:6:12  error  missing-path  no file in . matches src/budgeting/**; correct the glob, or remove it
+ddd.yaml:9:9  error  missing-path  src/budgeting/budget.py doesn't exist in .; correct the path, or remove it
+ddd-spec: no problems in the model and 2 problems in its links to the code, across 1 context
+```
+
+## [`missing-symbol`]($heading.id('missing-symbol'))
+
+A model breaks it when a code reference's file doesn't define its symbol, or for a quoted test name, doesn't contain it.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    aggregates:
+      event-budget:
+        root: src/budget.py#EventBudget
+```
+
+`src/budget.py`
+
+```python
+# EventBudget keeps an event's allocation.
+budget = EventBudget()
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:8:9  error  missing-symbol  src/budget.py doesn't define EventBudget; correct the symbol, or point at the file that defines it
+ddd-spec: no problems in the model and 1 problem in its links to the code, across 1 context
+```
+
+## [`overlapping-code`]($heading.id('overlapping-code'))
+
+A model breaks it when a file is in the code of two contexts, unless both have it in the code of a kernel they share.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    code: ["src/**"]
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    code: ["src/*.py"]
+```
+
+`src/budget.py`
+
+```python
+class Budget:
+    pass
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:6:12  error  missing-path  no file in . matches src/**; correct the glob, or remove it
+ddd.yaml:9:12  error  missing-path  no file in . matches src/*.py; correct the glob, or remove it
+ddd-spec: no problems in the model and 2 problems in its links to the code, across 2 contexts
+```
+
+## [`avoided-word`]($heading.id('avoided-word'))
+
+A model breaks it when the code of a context, or code a repository `implements` for it, contains a word one of its terms lists in `not`.
+
+`ddd.yaml`
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    code: ["src/**"]
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure.
+        not: [hold, cost centre]
+```
+
+`src/budget.py`
+
+```python
+def place_hold(amount: int) -> None:
+    costCentre = "events"
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:6:12  error  missing-path  no file in . matches src/**; correct the glob, or remove it
+ddd-spec: no problems in the model and 1 problem in its links to the code, across 1 context
+```

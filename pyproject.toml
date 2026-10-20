@@ -28,4 +28,4 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel.force-include]
-"schema" = "ddd_spec/schema"
+"spec" = "ddd_spec/spec"

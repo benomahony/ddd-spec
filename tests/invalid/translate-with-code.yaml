@@ -1,0 +1,3 @@
+purpose: Control the full committed cost of an event.
+uses:
+  expenses: { model: translate, contracts: [ExpenseApproved], code: [src/**] }

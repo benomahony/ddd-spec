@@ -22,7 +22,7 @@ contexts:
     purpose: Represent amounts of money the same way everywhere.
     code: ["src/money/**"]
     uses:
-      budgeting: { model: share }
+      budgeting: { model: share, code: ["src/money/**"] }
   forecasting:
     purpose: Predict what each event will end up spending.
     uses:

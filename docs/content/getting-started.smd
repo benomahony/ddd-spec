@@ -1,0 +1,217 @@
+---
+.title = "Getting started",
+.description = "Model one context, link it to the code, and grow the model from there.",
+.date = .date("2026-10-20T00:00:05"),
+.layout = "page.shtml",
+---
+
+This walks through modelling one part of a repository, an event platform's budgeting, from an empty file to a model the validator checks against the code. Each step is small, and each is useful on its own: a model never has to be complete to be worth having.
+
+# [Install the validator]($heading.id('install'))
+
+The validator is a Python command line tool. Run it without installing anything, through [uv](https://docs.astral.sh/uv/):
+
+```sh
+uvx ddd-spec check
+```
+
+Or install it once with `uv tool install ddd-spec`. Until it is on PyPI, use `uvx --from git+https://github.com/benomahony/ddd-spec ddd-spec` in place of `uvx ddd-spec`.
+
+# [Start with one context]($heading.id('one-context'))
+
+Create `ddd.yaml` at the root of the repository. It needs the specification's version, an id unique across your organisation, and at least one context with its purpose. Say which files implement it, too, so tools can tell which context a file belongs to:
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    code: ["src/budgeting/**"]
+```
+
+Check it:
+
+```console
+$ ddd-spec check
+ddd-spec: 1 context agrees with each other and with the code
+```
+
+The check confirms the file is valid and that `src/budgeting/**` matches files in the repository. Add a line at the top of the file and editors running the YAML language server will complete and validate it as you type:
+
+```yaml
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
+```
+
+# [Write down its words]($heading.id('language'))
+
+The most valuable thing a model records is what the context's words mean, because that is what a person or an agent new to the code gets wrong first. Give each term a definition, and list the words that must not stand in for it:
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    code: ["src/budgeting/**"]
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure, whether or not it has been paid.
+        not: [hold]
+      available-budget: The event's approved allocation minus its active commitments.
+```
+
+The validator now reads the context's code for the words it lists in `not`. Say the budget keeps its commitments like this:
+
+```python
+class EventBudget:
+    def __init__(self, allocation: int) -> None:
+        self.allocation = allocation
+        self.holds: list[int] = []
+
+    def reserve(self, amount: int) -> None:
+        if sum(self.holds) + amount > self.allocation:
+            raise ValueError("the commitment would take the event over its allocation")
+        self.holds.append(amount)
+```
+
+
+```console
+$ ddd-spec check
+src/budgeting/budget.py:4:14  error  avoided-word  'hold' stands in for 'commitment' in acme.events/budgeting; say commitment
+ddd-spec: no problems in the model and 1 problem in its links to the code, across 1 context
+```
+
+Renaming `self.holds` to `self.commitments` brings the code back to the context's language.
+
+# [Record the rules that matter]($heading.id('invariants'))
+
+An invariant is a rule every change must preserve. Record it with an honest status: `implemented` says the code keeps it, so the validator asks where:
+
+```yaml
+    invariants:
+      within-allocation:
+        statement: Active commitments never exceed the approved allocation.
+        status: implemented
+```
+
+```console
+$ ddd-spec check
+ddd.yaml:15:9  error  implemented-without-evidence  the invariant is marked implemented but names no code that enforces it and no test that verifies it; add enforced_by or verified_by, or mark it proposed
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 1 context
+```
+
+Point at the code that keeps the rule and the test that shows it holds. The validator checks that the file defines each symbol, not just mentions it:
+
+```yaml
+    invariants:
+      within-allocation:
+        statement: Active commitments never exceed the approved allocation.
+        status: implemented
+        enforced_by: [src/budgeting/budget.py#EventBudget.reserve]
+        verified_by: [tests/test_budget.py#test_rejects_commitment_above_allocation]
+```
+
+A rule nobody has implemented yet is still worth recording, as `proposed`.
+
+# [Ask before changing a file]($heading.id('explain'))
+
+`explain` prints everything the model says about the contexts a file belongs to, which is what you, or an agent, should read before changing it:
+
+```console
+$ ddd-spec explain src/budgeting/budget.py
+acme.events/budgeting:
+  context:
+    purpose: Control the full committed cost of an event.
+    code: [src/budgeting/**]
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure, whether or not it has been paid.
+        not: [hold]
+      available-budget: The event's approved allocation minus its active commitments.
+    invariants:
+      within-allocation:
+        statement: Active commitments never exceed the approved allocation.
+        status: implemented
+        enforced_by: [src/budgeting/budget.py#EventBudget.reserve]
+        verified_by: [tests/test_budget.py#test_rejects_commitment_above_allocation]
+  used_by: {}
+```
+
+# [Add a second context]($heading.id('dependencies'))
+
+As the model grows, move each context into a file of its own and list it in the manifest. Here budgeting reacts to expenses that another context approves:
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting: domains/budgeting.yaml
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    code: ["src/expenses/**"]
+    provides:
+      ExpenseApproved: { kind: event }
+```
+
+```yaml
+# domains/budgeting.yaml
+purpose: Control the full committed cost of an event.
+code: ["src/budgeting/**"]
+provides:
+  ReserveFunds: { kind: command }
+uses:
+  expenses:
+    model: translate
+    contracts: [ExpenseApproved@1]
+policies:
+  reserve-approved-expenses:
+    when: expenses#ExpenseApproved
+    then: [ReserveFunds]
+```
+
+Expenses owns `ExpenseApproved`, so it is upstream. Budgeting says how it treats that model, `translate` into its own words, which version it was built against, and what it does when the event arrives. The validator points out that budgeting relies on an event its owner hasn't promised to keep stable:
+
+```console
+$ ddd-spec check
+domains/budgeting.yaml:9:17  error  unpublished-contract  acme.events/expenses hasn't published ExpenseApproved, so it can change without warning; ask its owner to publish it, or share a kernel instead
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+Publishing it, with a version, settles that:
+
+```yaml
+    provides:
+      ExpenseApproved: { kind: event, published: true, version: "1" }
+```
+
+From now on, a change to the contract that moves it to version 2 shows up in every context still built against version 1:
+
+```console
+$ ddd-spec check
+domains/budgeting.yaml:9:17  error  outdated-contract  acme.events/budgeting was built against ExpenseApproved@1, but acme.events/expenses's ExpenseApproved is at version 2; update this context and its pin
+ddd-spec: 1 problem in the model and no problems in its links to the code, across 2 contexts
+```
+
+And `explain` on an expenses file shows who depends on each contract it owns:
+
+```console
+$ ddd-spec explain src/expenses/claims.py
+acme.events/expenses:
+  context:
+    purpose: Approve and reimburse what employees spend.
+    code: [src/expenses/**]
+    provides:
+      ExpenseApproved: {kind: event, published: true, version: '1'}
+  used_by:
+    ExpenseApproved:
+    - context: acme.events/budgeting
+      model: translate
+      built_against: '1'
+```
+
+# [Next]($heading.id('next'))
+
+* The [modelling guide]($link.page('guide')) covers choosing contexts, connecting repositories, external systems, and keeping a model true with agents and CI.
+* The [specification]($link.page('specification')) defines every field and rule.
+* The [checks]($link.page('checks')) page shows every rule with a model that breaks it.

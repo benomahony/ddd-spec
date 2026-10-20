@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from ddd_spec.checks import covers, defines, glob, repo_files, words
+from ddd_spec.checks import contains, covers, defines, glob, repo_files, words
 from ddd_spec.cli import app
 from ddd_spec.load import LATEST, Document, parse, validate, validators
 
@@ -75,6 +75,13 @@ def test_a_file_without_a_document_is_rejected(tmp_path: Path) -> None:
     assert "invalid-document  a ddd-spec file is a mapping of fields" in result.output
 
 
+@pytest.mark.parametrize("text", ["a: &x 1\nb: *x\n", "a: !custom 1\n", "a: !!str 1\n"], ids=["anchor", "custom-tag", "core-tag"])
+def test_anchors_aliases_and_tags_are_refused(text: str) -> None:
+    data, findings = parse("ddd.yaml", text)
+    assert data is None
+    assert [finding.check for finding in findings] == ["invalid-yaml"]
+
+
 def test_a_missing_manifest_is_a_usage_error(tmp_path: Path) -> None:
     result = runner.invoke(app, ["check", str(tmp_path)])
     assert result.exit_code == 2
@@ -93,7 +100,7 @@ def test_explain_follows_implements_into_an_imported_manifest() -> None:
     result = runner.invoke(app, ["explain", str(MODELS / "valid" / "src" / "postings" / "poster.py")])
     assert result.exit_code == 0, result.output
     assert result.output.startswith("acme.ledger/postings:\n")
-    assert "- acme.events/budgeting" in result.output
+    assert "    - context: acme.events/budgeting\n      model: translate\n" in result.output
 
 
 def test_explain_reports_a_file_outside_every_context() -> None:
@@ -186,10 +193,31 @@ def test_globs_skip_hidden_directories_but_not_dotfiles(tmp_path: Path) -> None:
 
 def test_identifiers_split_into_words() -> None:
     assert words("costCentreID_v2") == ["cost", "centre", "id", "v", "2"]
+    assert words("HTTPServer") == ["http", "server"]
+
+
+@pytest.mark.parametrize(
+    ("identifier", "found"),
+    [("costCentreId", True), ("COST_CENTRE", True), ("costCentres", True), ("cost_of_centre", False), ("centre_cost", False), ("costCentrez", False)],
+)
+def test_the_specs_example_of_an_avoided_word(identifier: str, found: bool) -> None:
+    assert contains(words(identifier), words("cost centre")) is found
+
+
+@pytest.mark.parametrize(("identifier", "found"), [("self.holds", True), ("holdes", True), ("holder", False), ("holdings", False), ("user", False)])
+def test_an_avoided_word_matches_its_plural_but_not_longer_words(identifier: str, found: bool) -> None:
+    assert any(contains(words(part), words("hold")) for part in identifier.split(".")) is found
+
+
+def test_every_rule_in_the_spec_has_a_failing_model_and_no_other_does() -> None:
+    text = (REPO / "spec" / f"v{LATEST}" / "spec.md").read_text()
+    rules = set(re.findall(r"^\| `([a-z-]+)` \|", text[text.index("## Rules") :], re.MULTILINE))
+    assert len(rules) > 20
+    assert rules == {path.name for path in fixtures(MODELS / "invalid", "*")}
 
 
 def test_each_schema_names_its_own_version() -> None:
-    for folder in fixtures(REPO / "schema", "v*"):
+    for folder in fixtures(REPO / "spec", "v*"):
         schema = json.loads((folder / "ddd.schema.json").read_text())
         assert schema["$id"] == f"https://benomahony.github.io/ddd-spec/{folder.name}/ddd.schema.json"
         assert schema["$defs"]["manifest"]["properties"]["ddd_spec_version"]["const"] == folder.name.removeprefix("v")
@@ -199,6 +227,20 @@ def test_the_readme_describes_the_latest_version() -> None:
     readme = (REPO / "README.md").read_text()
     assert set(re.findall(r'ddd_spec_version: "([0-9.]+)"', readme)) == {LATEST}
     assert set(re.findall(r"ddd-spec/v([0-9.]+)/ddd\.schema\.json", readme)) == {LATEST}
+
+
+def documented_files() -> list[tuple[str, str]]:
+    sources = [REPO / "README.md", *sorted(path for path in (REPO / "docs" / "content").glob("*.smd") if path.name != "checks.smd")]
+    blocks = [(f"{source.name}:{index}", block) for source in sources for index, block in enumerate(re.findall(r"```yaml\n(.*?)```", source.read_text(), re.DOTALL))]
+    return [(name, block) for name, block in blocks if re.search(r"^(ddd_spec_version|purpose):", block, re.MULTILINE)]
+
+
+@pytest.mark.parametrize(("name", "block"), documented_files(), ids=lambda value: value if ":" in value and "\n" not in value else "")
+def test_every_whole_file_the_docs_show_is_valid(name: str, block: str) -> None:
+    data, findings = parse(name, block)
+    assert data is not None, findings
+    manifest, context = validators(LATEST)
+    assert validate(manifest if "contexts" in data else context, Document(name, data)) == []
 
 
 def test_version_names_the_package_version() -> None:

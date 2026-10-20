@@ -19,10 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      # The pages come from README.md; a README change must regenerate them.
-      - name: Check the pages match README.md
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+
+      # The home, specification and checks pages come from README.md, spec/ and the test models.
+      - name: Check the generated pages are current
         run: |
-          python3 docs/sync.py
+          uv run python docs/sync.py
           git diff --exit-code docs/content
 
       - name: Install Zine
@@ -36,7 +38,7 @@ jobs:
 
       # Every version of the spec keeps its schema at its own URL for good, since files and editors point at it.
       - name: Publish every schema
-        run: cp -R schema/. docs/public/
+        run: cp -R spec/. docs/public/
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
