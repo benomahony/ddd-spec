@@ -1,0 +1,16 @@
+ddd: 0
+kind: BoundedContext
+id: acme/shipping
+purpose: Get paid orders to recipients.
+language:
+  recipient:
+    means: The person who receives a parcel, who may not be the payer.
+    from: acme/billing#customer
+inbound:
+  - from: acme/billing
+    event: InvoicePaid
+relationships:
+  - with: acme/billing
+    pattern: upstream-downstream
+    side: downstream
+    as: [anticorruption-layer]

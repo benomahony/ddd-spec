@@ -1,0 +1,34 @@
+ddd: 0
+kind: BoundedContext
+id: acme/billing
+purpose: Turn fulfilled orders into invoices and collect payment.
+relationships:
+  - with: acme/sales
+    pattern: partnership
+---
+ddd: 0
+kind: BoundedContext
+id: acme/sales
+purpose: Take orders from customers.
+relationships:
+  - with: acme/billing
+    pattern: customer-supplier
+    side: downstream
+---
+ddd: 0
+kind: BoundedContext
+id: acme/shipping
+purpose: Get paid orders to recipients.
+relationships:
+  - with: acme/warehouse
+    pattern: upstream-downstream
+    side: downstream
+---
+ddd: 0
+kind: BoundedContext
+id: acme/warehouse
+purpose: Keep stock and pick parcels.
+relationships:
+  - with: acme/shipping
+    pattern: upstream-downstream
+    side: downstream

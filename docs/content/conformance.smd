@@ -14,8 +14,26 @@
 
 # [Validating]($heading.id('validating'))
 
-```sh
-uvx check-jsonschema --schemafile ddd.schema.json ddd.yaml
+The reference validator, `ddd`, checks L1 and L2. It searches the paths you give it, or the current directory, for `ddd.yaml` and `*.ddd.yaml` files, and checks them as one model:
+
+```console
+$ uvx --from git+https://github.com/benomahony/ddd-spec ddd check
+billing.ddd.yaml:12:5  error  unmatched-message  acme/shipping has no inbound event InvoicePaid from acme/billing; add it there, or remove this one
+shipping/ddd.yaml:11:5  error  unmatched-message  acme/billing has no outbound event InvoiceIssued to acme/shipping; add it there, or remove this one
+ddd: 2 problems in 3 files
 ```
 
-Editors running the YAML language server validate and complete a file with the `$schema` comment shown at the top.
+| Check | Reported when |
+|---|---|
+| `invalid-yaml` | a file doesn't parse |
+| `invalid-document` | a document breaks the schema |
+| `duplicate-id` | two documents share an `id` |
+| `unknown-context` | a reference names a bounded context no file defines |
+| `unknown-term` | a `from` names a term its context doesn't define |
+| `one-sided-relationship` | the other context doesn't declare its side of a relationship |
+| `relationship-mismatch` | the two sides name different patterns, or both claim the same side |
+| `unmatched-message` | a message sent or received has no counterpart in the other context |
+
+It exits 1 when it finds a problem, and 2 when there are no files to check. Schema problems stop it before the checks across documents, since those rely on valid documents.
+
+Any JSON Schema validator checks L1 alone, and editors running the YAML language server validate and complete a file with the `$schema` comment shown at the top.

@@ -1,0 +1,15 @@
+ddd: 0
+kind: BoundedContext
+id: acme/billing
+purpose: Turn fulfilled orders into invoices and collect payment.
+language:
+  customer: The party an invoice is addressed to and who owes payment.
+---
+ddd: 0
+kind: BoundedContext
+id: acme/shipping
+purpose: Get paid orders to recipients.
+language:
+  recipient:
+    means: The person who receives a parcel.
+    from: acme/billing#client

@@ -3,8 +3,8 @@
 A file format for domain models: bounded contexts, the language each one speaks, how they relate, and the aggregates inside them. People, coding agents and tools all read the same file.
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/benomahony/ddd-spec/main/ddd.schema.json
-ddd: 1
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0/ddd.schema.json
+ddd: 0
 kind: BoundedContext
 id: acme/billing
 purpose: Turn fulfilled orders into invoices and collect payment.
@@ -41,7 +41,7 @@ Every document has:
 
 | Field | Meaning |
 |---|---|
-| `ddd` | The version of this specification, currently `1` |
+| `ddd` | The version of this specification, currently `0` |
 | `kind` | `BoundedContext`, `Aggregate` or `ContextMap` |
 | `id` | A path naming it across every repository, such as `acme/billing` |
 
@@ -98,14 +98,32 @@ Optional. It names a landscape (`name`, `description`) and lists `sources`, such
 
 ## Validating
 
-```sh
-uvx check-jsonschema --schemafile ddd.schema.json ddd.yaml
+The reference validator, `ddd`, checks L1 and L2. It searches the paths you give it, or the current directory, for `ddd.yaml` and `*.ddd.yaml` files, and checks them as one model:
+
+```console
+$ uvx --from git+https://github.com/benomahony/ddd-spec ddd check
+billing.ddd.yaml:12:5  error  unmatched-message  acme/shipping has no inbound event InvoicePaid from acme/billing; add it there, or remove this one
+shipping/ddd.yaml:11:5  error  unmatched-message  acme/billing has no outbound event InvoiceIssued to acme/shipping; add it there, or remove this one
+ddd: 2 problems in 3 files
 ```
 
-Editors running the YAML language server validate and complete a file with the `$schema` comment shown at the top.
+| Check | Reported when |
+|---|---|
+| `invalid-yaml` | a file doesn't parse |
+| `invalid-document` | a document breaks the schema |
+| `duplicate-id` | two documents share an `id` |
+| `unknown-context` | a reference names a bounded context no file defines |
+| `unknown-term` | a `from` names a term its context doesn't define |
+| `one-sided-relationship` | the other context doesn't declare its side of a relationship |
+| `relationship-mismatch` | the two sides name different patterns, or both claim the same side |
+| `unmatched-message` | a message sent or received has no counterpart in the other context |
+
+It exits 1 when it finds a problem, and 2 when there are no files to check. Schema problems stop it before the checks across documents, since those rely on valid documents.
+
+Any JSON Schema validator checks L1 alone, and editors running the YAML language server validate and complete a file with the `$schema` comment shown at the top.
 
 ## Contributing
 
-`tests/valid` holds documents the schema must accept and `tests/invalid` documents it must reject, each with exactly one fault. Any change to the schema comes with fixtures for it, and other implementations can test themselves against the same files.
+`tests/valid` holds documents the schema must accept and `tests/invalid` documents it must reject, each with exactly one fault. Any change to the schema comes with fixtures for it, and other implementations can test themselves against the same files. `tests/models/valid` is a model whose documents agree, and each directory in `tests/models/invalid` is a model that fails only the check it is named after. `uv run pytest` runs them all.
 
 The [site](https://benomahony.github.io/ddd-spec) is built with [Zine](https://zine-ssg.io) from this README. After changing it, run `python3 docs/sync.py` to regenerate the pages, and `zine` in `docs` to preview them.

@@ -13,7 +13,7 @@ Every document has:
 
 | Field | Meaning |
 |---|---|
-| `ddd` | The version of this specification, currently `1` |
+| `ddd` | The version of this specification, currently `0` |
 | `kind` | `BoundedContext`, `Aggregate` or `ContextMap` |
 | `id` | A path naming it across every repository, such as `acme/billing` |
 

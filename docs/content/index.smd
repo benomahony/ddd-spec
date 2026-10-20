@@ -8,8 +8,8 @@
 
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/benomahony/ddd-spec/main/ddd.schema.json
-ddd: 1
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0/ddd.schema.json
+ddd: 0
 kind: BoundedContext
 id: acme/billing
 purpose: Turn fulfilled orders into invoices and collect payment.

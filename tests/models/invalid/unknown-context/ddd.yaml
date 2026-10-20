@@ -1,0 +1,11 @@
+ddd: 0
+kind: BoundedContext
+id: acme/shipping
+purpose: Get paid orders to recipients.
+relationships:
+  - with: acme/marketing
+    pattern: separate-ways
+---
+ddd: 0
+kind: Aggregate
+id: acme/delivery/Parcel
