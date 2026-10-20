@@ -115,6 +115,10 @@ def resolve(base: str, relative: str) -> str:
     return os.path.normpath(Path(base).parent / relative)
 
 
+def canonical(location: str) -> str:
+    return location if is_url(location) else str(Path(location).resolve())
+
+
 def read(location: str) -> str | None:
     if is_url(location):
         try:
@@ -183,9 +187,9 @@ def load_landscape(locations: list[str], remote: bool) -> tuple[list[Manifest], 
     queue = [(location, None, None) for location in locations]
     while queue:
         location, importer, key = queue.pop(0)
-        if location in loaded or (is_url(location) and not remote):
+        if canonical(location) in loaded or (is_url(location) and not remote):
             if importer is not None:
-                importer.imported[key] = loaded[location].id if location in loaded else None
+                importer.imported[key] = loaded[canonical(location)].id if canonical(location) in loaded else None
             continue
         text = read(location)
         if text is None:
@@ -198,7 +202,7 @@ def load_landscape(locations: list[str], remote: bool) -> tuple[list[Manifest], 
         findings += problems
         if manifest is None:
             continue
-        loaded[location] = manifest
+        loaded[canonical(location)] = manifest
         everything.append(manifest)
         if importer is None:
             primary.append(manifest)

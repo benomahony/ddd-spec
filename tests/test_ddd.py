@@ -61,6 +61,20 @@ def test_each_invalid_model_fails_only_its_check(path: Path) -> None:
     assert found == {path.name}
 
 
+def test_a_manifest_passed_twice_is_loaded_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(MODELS / "valid")
+    result = runner.invoke(app, ["check", ".", "./ddd.yaml", str(MODELS / "valid")])
+    assert result.exit_code == 0, result.output
+    assert "5 contexts agree" in result.output
+
+
+def test_a_file_without_a_document_is_rejected(tmp_path: Path) -> None:
+    (tmp_path / "ddd.yaml").write_text("# just a comment\n---\n")
+    result = runner.invoke(app, ["check", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "invalid-document  a ddd-spec file is a mapping of fields" in result.output
+
+
 def test_a_missing_manifest_is_a_usage_error(tmp_path: Path) -> None:
     result = runner.invoke(app, ["check", str(tmp_path)])
     assert result.exit_code == 2
