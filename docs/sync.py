@@ -7,8 +7,8 @@ CONTENT = DOCS / "content"
 TITLE = "# ddd-spec"
 PAGES: dict[str, tuple[str, str, str, str, str]] = {
     "index.smd": ("ddd-spec", "", "index.shtml", TITLE, "## Files"),
-    "documents.smd": ("Documents", "Every kind of document, and what each of its fields means.", "page.shtml", "## Files", "## Conformance"),
-    "conformance.smd": ("Conformance", "What a tool checks at each level, and how to validate a file.", "page.shtml", "## Conformance", "## Contributing"),
+    "format.smd": ("Format", "The manifest, the context files it lists, and what each field means.", "page.shtml", "## Files", "## Conformance"),
+    "conformance.smd": ("Conformance", "What each level of checking establishes, and how to check a repository.", "page.shtml", "## Conformance", "## Contributing"),
 }
 
 

@@ -1,6 +1,0 @@
-ddd: 0
-kind: ContextMap
-id: acme
-name: Acme Commerce
-sources:
-  - https://github.com/acme/shipping

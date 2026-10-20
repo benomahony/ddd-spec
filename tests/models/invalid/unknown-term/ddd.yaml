@@ -1,15 +1,13 @@
-ddd: 0
-kind: BoundedContext
-id: acme/billing
-purpose: Turn fulfilled orders into invoices and collect payment.
-language:
-  customer: The party an invoice is addressed to and who owes payment.
----
-ddd: 0
-kind: BoundedContext
-id: acme/shipping
-purpose: Get paid orders to recipients.
-language:
-  recipient:
-    means: The person who receives a parcel.
-    from: acme/billing#client
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure.
+        from: expenses#claim
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    language:
+      approved expense: An expense a manager has accepted for reimbursement.

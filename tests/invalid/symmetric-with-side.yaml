@@ -1,8 +1,0 @@
-ddd: 0
-kind: BoundedContext
-id: acme/shipping
-purpose: Get paid orders to recipients.
-relationships:
-  - with: acme/billing
-    pattern: partnership
-    side: upstream

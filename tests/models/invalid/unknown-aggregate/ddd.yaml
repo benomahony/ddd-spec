@@ -1,0 +1,10 @@
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    invariants:
+      within-allocation:
+        statement: Active commitments never exceed the approved allocation.
+        status: proposed
+        applies_to: [event-budget]

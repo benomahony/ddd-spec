@@ -1,41 +1,44 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://benomahony.github.io/ddd-spec/v0/ddd.schema.json",
+  "$id": "https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json",
   "title": "ddd-spec",
-  "description": "One document of a domain model: a bounded context, an aggregate or a context map.",
-  "type": "object",
-  "required": ["ddd", "kind", "id"],
-  "properties": {
-    "ddd": {
-      "description": "The version of this specification the document follows.",
-      "const": 0
-    },
-    "kind": {
-      "enum": ["BoundedContext", "Aggregate", "ContextMap"]
-    },
-    "id": {
-      "$ref": "#/$defs/id"
-    }
-  },
-  "allOf": [
-    {
-      "if": { "properties": { "kind": { "const": "BoundedContext" } } },
-      "then": { "$ref": "#/$defs/BoundedContext" }
-    },
-    {
-      "if": { "properties": { "kind": { "const": "Aggregate" } } },
-      "then": { "$ref": "#/$defs/Aggregate" }
-    },
-    {
-      "if": { "properties": { "kind": { "const": "ContextMap" } } },
-      "then": { "$ref": "#/$defs/ContextMap" }
-    }
-  ],
+  "description": "A ddd.yaml manifest, or a context file it lists.",
+  "if": { "type": "object", "required": ["contexts"] },
+  "then": { "$ref": "#/$defs/manifest" },
+  "else": { "$ref": "#/$defs/context" },
   "$defs": {
-    "id": {
-      "description": "A path that names one thing across every repository, such as acme/billing or acme/billing/Invoice.",
+    "name": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$"
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "manifest_id": {
+      "description": "A name for the manifest that is unique across every repository, such as acme.events.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "context_ref": {
+      "description": "A context in this manifest by its name, or in another manifest as <manifest id>/<name>.",
+      "type": "string",
+      "pattern": "^([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*$"
+    },
+    "term_ref": {
+      "description": "A term in another context's language, as <context>#<term>.",
+      "type": "string",
+      "pattern": "^([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*#.+$"
+    },
+    "code_ref": {
+      "description": "A file relative to the repository root, using /, optionally followed by #Symbol.",
+      "type": "string",
+      "pattern": "^[^#\\s/][^#\\s]*(#[A-Za-z_][A-Za-z0-9_.]*)?$"
+    },
+    "code_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/code_ref" },
+      "uniqueItems": true
+    },
+    "contract_name": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9]*$"
     },
     "sentence": {
       "type": "string",
@@ -45,30 +48,49 @@
       "type": "array",
       "items": { "$ref": "#/$defs/sentence" }
     },
-    "names": {
-      "type": "array",
-      "items": { "type": "string", "minLength": 1 },
-      "uniqueItems": true
+    "status": {
+      "description": "Whether the model describes a plan, the code as it is, or something being removed. Implemented is the author's claim; the linked code and tests are its evidence.",
+      "enum": ["proposed", "implemented", "deprecated"]
     },
     "extensions": {
       "patternProperties": {
         "^x-": {}
       }
     },
-    "BoundedContext": {
+    "manifest": {
       "type": "object",
-      "required": ["ddd", "kind", "id", "purpose"],
+      "required": ["ddd_spec_version", "id", "contexts"],
       "allOf": [{ "$ref": "#/$defs/extensions" }],
       "unevaluatedProperties": false,
       "properties": {
-        "ddd": true,
-        "kind": { "const": "BoundedContext" },
-        "id": true,
-        "name": {
-          "type": "string"
+        "ddd_spec_version": {
+          "description": "The version of ddd-spec the manifest follows.",
+          "const": "0.1"
         },
+        "id": { "$ref": "#/$defs/manifest_id" },
+        "name": { "type": "string" },
+        "contexts": {
+          "description": "Each bounded context, by name: a context file relative to this one, or the context itself.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": {
+            "if": { "type": "string" },
+            "then": { "pattern": "^[^\\s/][^\\s]*\\.ya?ml$" },
+            "else": { "$ref": "#/$defs/context" }
+          }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "required": ["purpose"],
+      "allOf": [{ "$ref": "#/$defs/extensions" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "name": { "type": "string" },
         "purpose": {
-          "description": "Why the context exists, in the business's words.",
+          "description": "The business responsibility of the context.",
           "$ref": "#/$defs/sentence"
         },
         "owner": {
@@ -79,205 +101,152 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "domain": {
-              "enum": ["core", "supporting", "generic"]
-            },
-            "business_model": {
-              "enum": ["revenue", "engagement", "compliance", "cost-reduction"]
-            },
-            "evolution": {
-              "enum": ["genesis", "custom-built", "product", "commodity"]
-            }
+            "domain": { "enum": ["core", "supporting", "generic"] }
           }
         },
-        "roles": {
-          "description": "The domain roles the context plays, such as execution, analysis or gateway.",
-          "$ref": "#/$defs/names"
+        "scope": {
+          "description": "What belongs in this context, and what belongs elsewhere.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "includes": { "$ref": "#/$defs/sentences" },
+            "excludes": { "$ref": "#/$defs/sentences" }
+          }
+        },
+        "code": {
+          "description": "Globs, relative to the repository root, for the files that implement the context.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[^\\s/][^\\s]*$" },
+          "uniqueItems": true
         },
         "language": {
-          "description": "The ubiquitous language: each term the context uses, with what it means here.",
+          "description": "Each term the context uses, with what it means here.",
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/term" }
         },
-        "decisions": {
-          "description": "Business rules and policies the context enforces.",
-          "$ref": "#/$defs/sentences"
+        "aggregates": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/aggregate" }
         },
-        "inbound": {
+        "invariants": {
+          "description": "Rules every change must preserve.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/invariant" }
+        },
+        "provides": {
+          "description": "The contracts the context owns: commands and queries it accepts, and events it emits.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/contract_name" },
+          "additionalProperties": { "$ref": "#/$defs/contract" }
+        },
+        "uses": {
+          "description": "Each context whose model this one depends on, and how it treats that model.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/context_ref" },
+          "additionalProperties": { "$ref": "#/$defs/use" }
+        },
+        "customers": {
+          "description": "Contexts whose needs this one plans for.",
           "type": "array",
-          "items": { "$ref": "#/$defs/inbound" }
+          "items": { "$ref": "#/$defs/context_ref" },
+          "uniqueItems": true
         },
-        "outbound": {
+        "partners": {
+          "description": "Contexts this one succeeds or fails with, and plans together with.",
           "type": "array",
-          "items": { "$ref": "#/$defs/outbound" }
-        },
-        "relationships": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/relationship" }
-        },
-        "assumptions": {
-          "$ref": "#/$defs/sentences"
-        },
-        "open_questions": {
-          "$ref": "#/$defs/sentences"
+          "items": { "$ref": "#/$defs/context_ref" },
+          "uniqueItems": true
         }
       }
     },
     "term": {
-      "oneOf": [
-        { "$ref": "#/$defs/sentence" },
-        {
-          "type": "object",
-          "required": ["means"],
-          "additionalProperties": false,
-          "properties": {
-            "means": { "$ref": "#/$defs/sentence" },
-            "not": {
-              "description": "Words that must not stand in for this term inside this context.",
-              "$ref": "#/$defs/names"
-            },
-            "from": {
-              "description": "The term in another context this one is translated from, as <context id>#<term>.",
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*#.+$"
-            }
-          }
+      "if": { "type": "string" },
+      "then": { "$ref": "#/$defs/sentence" },
+      "else": {
+        "type": "object",
+        "required": ["means"],
+        "additionalProperties": false,
+        "properties": {
+          "means": { "$ref": "#/$defs/sentence" },
+          "not": {
+            "description": "Words that must not stand in for this term inside this context.",
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "from": {
+            "description": "The term in another context this one is translated from.",
+            "$ref": "#/$defs/term_ref"
+          },
+          "code": { "$ref": "#/$defs/code_refs" }
         }
-      ]
+      }
     },
-    "message": {
-      "oneOf": [
-        { "required": ["command"] },
-        { "required": ["query"] },
-        { "required": ["event"] }
-      ],
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "command": { "type": "string", "minLength": 1 },
-        "query": { "type": "string", "minLength": 1 },
-        "event": { "type": "string", "minLength": 1 },
-        "contract": {
-          "description": "Where the message's format is defined, such as an AsyncAPI or OpenAPI document.",
+        "purpose": { "$ref": "#/$defs/sentence" },
+        "root": { "$ref": "#/$defs/code_ref" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "invariant": {
+      "type": "object",
+      "required": ["statement", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "statement": { "$ref": "#/$defs/sentence" },
+        "status": { "$ref": "#/$defs/status" },
+        "applies_to": {
+          "description": "The aggregates whose consistency boundary holds the rule, once that is decided.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/name" },
+          "uniqueItems": true
+        },
+        "enforced_by": { "$ref": "#/$defs/code_refs" },
+        "verified_by": { "$ref": "#/$defs/code_refs" }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["command", "query", "event"] },
+        "means": { "$ref": "#/$defs/sentence" },
+        "published": {
+          "description": "The contract is versioned, and other contexts may rely on it.",
+          "type": "boolean"
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "defined_in": {
+          "description": "Where its format is defined, such as an AsyncAPI or OpenAPI document.",
           "type": "string",
           "format": "uri-reference"
         }
       }
     },
-    "inbound": {
+    "use": {
       "type": "object",
-      "required": ["from"],
-      "allOf": [{ "$ref": "#/$defs/message" }],
-      "unevaluatedProperties": false,
-      "properties": {
-        "from": { "$ref": "#/$defs/id" }
-      }
-    },
-    "outbound": {
-      "type": "object",
-      "required": ["to"],
-      "allOf": [{ "$ref": "#/$defs/message" }],
-      "unevaluatedProperties": false,
-      "properties": {
-        "to": { "$ref": "#/$defs/id" }
-      }
-    },
-    "relationship": {
-      "description": "How this context relates to another, declared by each side so the two can be compared.",
-      "type": "object",
-      "required": ["with", "pattern"],
+      "required": ["model"],
       "additionalProperties": false,
       "properties": {
-        "with": { "$ref": "#/$defs/id" },
-        "pattern": {
-          "enum": ["partnership", "shared-kernel", "customer-supplier", "upstream-downstream", "separate-ways"]
+        "model": {
+          "description": "Whether this context adopts the other's model, translates it into its own, or shares its code.",
+          "enum": ["conform", "translate", "share"]
         },
-        "side": {
-          "enum": ["upstream", "downstream"]
-        },
-        "as": {
+        "contracts": {
           "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "enum": ["open-host-service", "published-language", "anticorruption-layer", "conformist"]
-          }
-        }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": { "pattern": { "enum": ["customer-supplier", "upstream-downstream"] } }
-          },
-          "then": { "required": ["side"] },
-          "else": { "not": { "anyOf": [{ "required": ["side"] }, { "required": ["as"] }] } }
-        },
-        {
-          "if": {
-            "required": ["side"],
-            "properties": { "side": { "const": "upstream" } }
-          },
-          "then": {
-            "properties": { "as": { "items": { "enum": ["open-host-service", "published-language"] } } }
-          }
-        },
-        {
-          "if": {
-            "required": ["side"],
-            "properties": { "side": { "const": "downstream" } }
-          },
-          "then": {
-            "properties": { "as": { "items": { "enum": ["anticorruption-layer", "conformist"] } } }
-          }
-        }
-      ]
-    },
-    "Aggregate": {
-      "type": "object",
-      "required": ["ddd", "kind", "id"],
-      "allOf": [{ "$ref": "#/$defs/extensions" }],
-      "unevaluatedProperties": false,
-      "properties": {
-        "ddd": true,
-        "kind": { "const": "Aggregate" },
-        "id": true,
-        "description": { "$ref": "#/$defs/sentence" },
-        "handles": {
-          "description": "The commands the aggregate accepts.",
-          "$ref": "#/$defs/names"
-        },
-        "emits": {
-          "description": "The events the aggregate raises.",
-          "$ref": "#/$defs/names"
-        },
-        "states": {
-          "$ref": "#/$defs/names"
-        },
-        "invariants": {
-          "description": "Statements that are true of the aggregate after every command.",
-          "$ref": "#/$defs/sentences"
-        },
-        "corrective_policies": {
-          "description": "What happens when an invariant can only be restored after the fact.",
-          "$ref": "#/$defs/sentences"
-        }
-      }
-    },
-    "ContextMap": {
-      "type": "object",
-      "required": ["ddd", "kind", "id"],
-      "allOf": [{ "$ref": "#/$defs/extensions" }],
-      "unevaluatedProperties": false,
-      "properties": {
-        "ddd": true,
-        "kind": { "const": "ContextMap" },
-        "id": true,
-        "name": { "type": "string" },
-        "description": { "$ref": "#/$defs/sentence" },
-        "sources": {
-          "description": "Where else to find documents for this map, such as other repositories.",
-          "type": "array",
-          "items": { "type": "string", "format": "uri-reference" },
+          "items": { "$ref": "#/$defs/contract_name" },
+          "minItems": 1,
           "uniqueItems": true
         }
-      }
+      },
+      "if": { "properties": { "model": { "enum": ["conform", "translate"] } } },
+      "then": { "required": ["contracts"] }
     }
   }
 }

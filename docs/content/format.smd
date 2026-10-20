@@ -1,0 +1,87 @@
+---
+.title = "Format",
+.description = "The manifest, the context files it lists, and what each field means.",
+.date = .date("2026-10-20T00:00:02"),
+.layout = "page.shtml",
+---
+
+# [Files]($heading.id('files'))
+
+A repository has one `ddd.yaml` at its root: the manifest. It lists every bounded context, by name, either as a context file relative to the manifest or inline. Tools read only the files the manifest lists.
+
+| Field | Meaning |
+|---|---|
+| `ddd_spec_version` | The version of this specification, currently `"0.1"` |
+| `id` | A name for the manifest unique across every repository, such as `acme.events` |
+| `name` | A display name |
+| `contexts` | Each context's name, mapped to its file or to the context itself |
+
+A context's id is the manifest's id and its name: `acme.events/budgeting`. Within a manifest, a context is referred to by its name alone; from another manifest, by its full id. A repository may hold several contexts, and several repositories may depend on each other's contexts.
+
+Paths and globs are relative to the repository root, use `/`, and are case-sensitive. A reference to code is a path, optionally followed by `#` and a symbol: `src/budgeting/budget.py#EventBudget.reserve`.
+
+Any field starting with `x-` is an extension, and tools that don't know it ignore it. Any other unknown field is an error.
+
+While the specification is at 0.x, each minor version may change what a file means, so `ddd_spec_version` names one; the schema for it lives at `https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json`.
+
+# [Contexts]($heading.id('contexts'))
+
+Only `purpose` is required.
+
+| Field | Meaning |
+|---|---|
+| `purpose` | The business responsibility of the context |
+| `name`, `owner` | A display name, and the team accountable for it |
+| `classification` | Its `domain`: `core`, `supporting` or `generic` |
+| `scope` | What it `includes` and what it `excludes`, in sentences |
+| `code` | Globs for the files that implement it |
+| `language` | Its terms, described below |
+| `aggregates`, `invariants` | Its consistency boundaries and rules, described below |
+| `provides`, `uses`, `customers`, `partners` | Its contracts and dependencies, described below |
+
+## [Language]($heading.id('language'))
+
+Each term maps to its definition, or to these fields:
+
+| Field | Meaning |
+|---|---|
+| `means` | Required. What the term means in this context |
+| `not` | Words that must not stand in for it here |
+| `from` | The term in another context it is translated from, as `<context>#<term>` |
+| `code` | The symbols that implement it |
+
+## [Aggregates and invariants]($heading.id('aggregates-and-invariants'))
+
+An aggregate has an optional `purpose`, a `root` symbol and a `status`. An invariant has:
+
+| Field | Meaning |
+|---|---|
+| `statement` | Required. The rule, as a sentence that is true after every change |
+| `status` | Required. `proposed`, `implemented` or `deprecated` |
+| `applies_to` | The aggregates whose boundary holds it, once that is decided |
+| `enforced_by` | The code that keeps it true |
+| `verified_by` | The tests or checks that show it holds |
+
+An invariant can be recorded before anyone knows which aggregate will hold it. A proposed rule never becomes a guarantee by being written down.
+
+## [Contracts and dependencies]($heading.id('contracts-and-dependencies'))
+
+| Field | Meaning |
+|---|---|
+| `provides` | The contracts the context owns, by name: each with a `kind` (`command`, `query` or `event`), and optionally what it `means`, whether it is `published`, its `status`, and where it is `defined_in` |
+| `uses` | Each context whose model this one depends on, with its `model` (`conform`, `translate` or `share`) and the `contracts` it uses |
+| `customers` | Contexts whose needs this one plans for |
+| `partners` | Contexts this one plans together with; both sides list each other |
+
+The owner of a contract is upstream of those that use it, whichever way its messages flow: a context owns the commands and queries it accepts and the events it emits. A published contract is versioned, and others may rely on it.
+
+Evans's patterns are derived, not declared:
+
+| Pattern | Holds when |
+|---|---|
+| Open host service, published language | the contract is `published` |
+| Anticorruption layer | the downstream context has `model: translate` |
+| Conformist | the downstream context has `model: conform`, and the upstream doesn't list it in `customers` |
+| Customer and supplier | the upstream context lists the downstream one in `customers` |
+| Partnership | both contexts list each other in `partners` |
+| Shared kernel | both contexts use each other with `model: share` |

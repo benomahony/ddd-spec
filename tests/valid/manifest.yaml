@@ -1,0 +1,8 @@
+ddd_spec_version: "0.1"
+id: acme.events
+name: Acme Events
+contexts:
+  budgeting: domains/budgeting.yaml
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+x-team-channel: "#events"

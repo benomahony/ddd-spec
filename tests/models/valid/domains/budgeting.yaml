@@ -1,0 +1,34 @@
+purpose: Control the full committed cost of an event.
+classification: { domain: core }
+scope:
+  includes: [Allocating event budgets, Reserving funds for event expenditure]
+  excludes: [Reimbursing employees]
+code: ["src/budgeting/**"]
+language:
+  commitment:
+    means: Funds reserved for approved expenditure, whether or not it has been paid.
+    from: expenses#approved expense
+    code: [src/budgeting/commitment.py#Commitment]
+  available budget: The event's approved allocation minus its active commitments.
+aggregates:
+  event-budget:
+    root: src/budgeting/budget.py#EventBudget
+invariants:
+  within-allocation:
+    statement: Active commitments never exceed the approved allocation.
+    status: implemented
+    applies_to: [event-budget]
+    enforced_by: [src/budgeting/budget.py#EventBudget.reserve]
+    verified_by: [checks/budget_checks.py#rejects_commitment_above_allocation]
+  event-cost-attribution:
+    statement: Every approved expense for an event counts against that event's budget.
+    status: proposed
+provides:
+  BudgetExceeded: { kind: event, published: true }
+uses:
+  expenses:
+    model: translate
+    contracts: [ExpenseApproved]
+  acme.travel/bookings:
+    model: conform
+    contracts: [TripBooked]

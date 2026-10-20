@@ -1,5 +1,4 @@
 import json
-from collections.abc import Iterator
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -10,10 +9,11 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.error import MarkedYAMLError
 
-FILENAME = "ddd.yaml"
-SUFFIX = ".ddd.yaml"
-DOCUMENTS_PAGE = "https://benomahony.github.io/ddd-spec/documents/"
-VALIDATOR = Draft202012Validator(json.loads(files("ddd_spec").joinpath("ddd.schema.json").read_text()))
+MANIFEST = "ddd.yaml"
+FORMAT_PAGE = "https://benomahony.github.io/ddd-spec/format/"
+SCHEMA = json.loads(files("ddd_spec").joinpath("ddd.schema.json").read_text())
+MANIFEST_VALIDATOR = Draft202012Validator(SCHEMA)
+CONTEXT_VALIDATOR = Draft202012Validator({"$ref": "#/$defs/context", "$defs": SCHEMA["$defs"]})
 
 
 @dataclass(frozen=True)
@@ -33,14 +33,6 @@ class Document:
     path: Path
     data: CommentedMap
 
-    @property
-    def id(self) -> str:
-        return self.data["id"]
-
-    @property
-    def kind(self) -> str:
-        return self.data["kind"]
-
     def finding(self, check: str, message: str, *keys: str | int) -> Finding:
         node, line, column = self.data, self.data.lc.line, self.data.lc.col
         for key in keys:
@@ -54,41 +46,93 @@ class Document:
         return Finding(self.path, line + 1, column + 1, check, message)
 
 
-def discover(paths: list[Path]) -> Iterator[Path]:
-    for path in paths:
-        if path.is_file():
-            yield path
-            continue
-        for found in sorted(path.rglob("*")):
-            hidden = any(part.startswith(".") for part in found.relative_to(path).parts)
-            if found.is_file() and not hidden and (found.name == FILENAME or found.name.endswith(SUFFIX)):
-                yield found
+@dataclass(frozen=True)
+class Context:
+    manifest: str
+    name: str
+    root: Path
+    document: Document
+    keys: tuple[str, ...]
+
+    @property
+    def id(self) -> str:
+        return f"{self.manifest}/{self.name}"
+
+    @property
+    def data(self) -> CommentedMap:
+        node = self.document.data
+        for key in self.keys:
+            node = node[key]
+        return node
+
+    def ref(self, value: str) -> str:
+        return value if "/" in value else f"{self.manifest}/{value}"
+
+    def finding(self, check: str, message: str, *keys: str | int) -> Finding:
+        return self.document.finding(check, message, *self.keys, *keys)
 
 
-def load(path: Path) -> tuple[list[Document], list[Finding]]:
-    documents, findings = [], []
+@dataclass(frozen=True)
+class Manifest:
+    document: Document
+    contexts: list[Context]
+
+    @property
+    def id(self) -> str:
+        return self.document.data["id"]
+
+    @property
+    def root(self) -> Path:
+        return self.document.path.parent
+
+
+def parse(path: Path) -> tuple[CommentedMap | None, list[Finding]]:
     try:
-        for data in YAML(typ="rt").load_all(path.read_text()):
-            if data is None:
-                continue
-            if not isinstance(data, CommentedMap):
-                findings.append(Finding(path, 1, 1, "invalid-document", f"a document is a mapping of fields, not {type(data).__name__}; see {DOCUMENTS_PAGE}"))
-                continue
-            document = Document(path, data)
-            errors = validate(document)
-            findings += errors
-            if not errors:
-                documents.append(document)
+        data = YAML(typ="rt").load(path.read_text())
     except MarkedYAMLError as error:
         mark = error.problem_mark or error.context_mark
         line, column = (mark.line + 1, mark.column + 1) if mark else (1, 1)
-        findings.append(Finding(path, line, column, "invalid-yaml", f"{error.problem or error.context}; fix the YAML so it parses"))
-    return documents, findings
+        return None, [Finding(path, line, column, "invalid-yaml", f"{error.problem or error.context}; fix the YAML so it parses")]
+    if not isinstance(data, CommentedMap):
+        return None, [Finding(path, 1, 1, "invalid-document", f"a ddd-spec file is a mapping of fields; see {FORMAT_PAGE}")]
+    return data, []
 
 
-def validate(document: Document) -> list[Finding]:
+def validate(validator: Draft202012Validator, document: Document) -> list[Finding]:
     findings = []
-    for error in sorted(VALIDATOR.iter_errors(document.data), key=lambda error: list(map(str, error.absolute_path))):
+    for error in sorted(validator.iter_errors(document.data), key=lambda error: list(map(str, error.absolute_path))):
         cause = best_match(error.context) if error.context else error
-        findings.append(document.finding("invalid-document", f"{cause.message}; see {DOCUMENTS_PAGE}", *cause.absolute_path))
+        findings.append(document.finding("invalid-document", f"{cause.message}; see {FORMAT_PAGE}", *cause.absolute_path))
     return findings
+
+
+def load(path: Path) -> tuple[Manifest | None, list[Finding]]:
+    data, findings = parse(path)
+    if data is None:
+        return None, findings
+    document = Document(path, data)
+    findings = validate(MANIFEST_VALIDATOR, document)
+    if findings:
+        return None, findings
+    contexts = []
+    for name, entry in data["contexts"].items():
+        if isinstance(entry, CommentedMap):
+            contexts.append(Context(data["id"], name, path.parent, document, ("contexts", name)))
+            continue
+        file = path.parent / entry
+        if not file.is_file():
+            findings.append(document.finding("missing-file", f"{file} doesn't exist; create it, or correct the path", "contexts", name))
+            continue
+        context_data, problems = parse(file)
+        findings += problems
+        if context_data is not None:
+            context_document = Document(file, context_data)
+            problems = validate(CONTEXT_VALIDATOR, context_document)
+            findings += problems
+            if not problems:
+                contexts.append(Context(data["id"], name, path.parent, context_document, ()))
+    return Manifest(document, contexts), findings
+
+
+def manifest_path(path: Path) -> Path:
+    return path / MANIFEST if path.is_dir() else path

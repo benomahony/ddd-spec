@@ -1,16 +1,13 @@
-ddd: 0
-kind: ContextMap
-id: acme
-name: Acme Commerce
----
-ddd: 0
-kind: BoundedContext
-id: acme/sales
-purpose: Take orders from customers.
-outbound:
-  - to: acme/billing
-    command: IssueInvoice
-relationships:
-  - with: acme/billing
-    pattern: customer-supplier
-    side: downstream
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting: domains/budgeting.yaml
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    classification: { domain: supporting }
+    code: ["src/expenses/**"]
+    language:
+      approved expense: An expense a manager has accepted for reimbursement.
+    provides:
+      ExpenseApproved: { kind: event, published: true }
+    customers: [budgeting]

@@ -1,11 +1,6 @@
-ddd: 0
-kind: BoundedContext
-id: acme/shipping
-purpose: Get paid orders to recipients.
-relationships:
-  - with: acme/marketing
-    pattern: separate-ways
----
-ddd: 0
-kind: Aggregate
-id: acme/delivery/Parcel
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    partners: [ledger]

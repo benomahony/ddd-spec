@@ -1,6 +1,6 @@
 ---
 .title = "ddd-spec",
-.description = "A file format for domain models: bounded contexts, the language each one speaks, how they relate, and the aggregates inside them. People, coding agents and tools all read the same file.",
+.description = "A domain model that lives next to the code: which bounded contexts a repository holds, what their words mean, which rules every change must preserve, and how the contexts depend on each other. People, coding agents and tools all read the same files.",
 .date = .date("2026-10-20T00:00:03"),
 .layout = "index.shtml",
 ---
@@ -8,32 +8,44 @@
 
 
 ```yaml
-# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0/ddd.schema.json
-ddd: 0
-kind: BoundedContext
-id: acme/billing
-purpose: Turn fulfilled orders into invoices and collect payment.
-owner: team/money
+# ddd.yaml
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting: domains/budgeting.yaml
+```
+
+```yaml
+# domains/budgeting.yaml
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
+purpose: Control the full committed cost of an event.
+scope:
+  includes: [Allocating event budgets, Reserving funds for event expenditure]
+  excludes: [Reimbursing employees]
+code: ["src/budgeting/**"]
 language:
-  invoice: A request for payment for one fulfilled order.
-  customer:
-    means: The party an invoice is addressed to and who owes payment.
-    not: [client, user]
-outbound:
-  - to: acme/shipping
-    event: InvoicePaid
-    contract: asyncapi.yaml#/channels/invoicePaid
-relationships:
-  - with: acme/shipping
-    pattern: upstream-downstream
-    side: upstream
-    as: [open-host-service, published-language]
+  commitment:
+    means: Funds reserved for approved expenditure, whether or not it has been paid.
+    from: acme.expenses/claims#approved expense
+  available budget: The event's approved allocation minus its active commitments.
+invariants:
+  within-allocation:
+    statement: Active commitments never exceed the approved allocation.
+    status: implemented
+    enforced_by: [src/budgeting/budget.py#EventBudget.reserve]
+    verified_by: [tests/test_budget.py#test_rejects_commitment_above_allocation]
+uses:
+  acme.expenses/claims:
+    model: translate
+    contracts: [ExpenseApproved]
 ```
 
 # [Principles]($heading.id('principles'))
 
-1. **Familiar words.** Fields follow the [Bounded Context Canvas](https://github.com/ddd-crew/bounded-context-canvas) and the [Aggregate Design Canvas](https://github.com/ddd-crew/aggregate-design-canvas). Relationship patterns follow [Context Mapper](https://contextmapper.org/docs/context-map/).
-2. **Owners write locally, and the map is computed.** Each context declares its own side of every relationship, in its own repository. The context map is built from those declarations, and two sides that disagree is a finding.
-3. **No global vocabulary.** A word means something only inside a context. Translations between contexts are written down with `from`.
-4. **Contracts live elsewhere.** A message points to its OpenAPI or AsyncAPI definition instead of repeating it.
-5. **Plain language.** A term can be just `term: definition`.
+1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules and the evidence that they hold. `ddd explain` does exactly that.
+2. **Each fact is declared once, by whoever owns it.** A context lists the contracts it provides and the contracts it uses. Who is upstream, and every pattern from Evans's *Domain-Driven Design*, follows from those facts rather than being declared beside them.
+3. **Words belong to a context.** The same word may mean different things in different contexts, and a translation between them is written down.
+4. **Absent means undocumented.** A model can describe as much or as little as is known. A missing declaration never means that something doesn't exist.
+5. **Claims are not evidence.** `implemented` is what the author says; the linked code and tests are what a reader can check.
+6. **Contracts live elsewhere.** A contract points at its OpenAPI or AsyncAPI definition instead of repeating it.
