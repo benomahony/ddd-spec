@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/benomahony/ddd-spec/main/ddd.schema.json",
+  "$id": "https://benomahony.github.io/ddd-spec/v0/ddd.schema.json",
   "title": "ddd.yaml",
   "description": "One document of a domain model: a bounded context, an aggregate or a context map.",
   "type": "object",
@@ -8,7 +8,7 @@
   "properties": {
     "ddd": {
       "description": "The version of this specification the document follows.",
-      "const": 1
+      "const": 0
     },
     "kind": {
       "enum": ["BoundedContext", "Aggregate", "ContextMap"]

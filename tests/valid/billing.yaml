@@ -1,4 +1,4 @@
-ddd: 1
+ddd: 0
 kind: BoundedContext
 id: acme/billing
 purpose: Turn fulfilled orders into invoices and collect payment.
