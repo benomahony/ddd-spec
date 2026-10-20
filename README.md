@@ -127,3 +127,5 @@ Any JSON Schema validator checks L1 alone, and editors running the YAML language
 `tests/valid` holds documents the schema must accept and `tests/invalid` documents it must reject, each with exactly one fault. Any change to the schema comes with fixtures for it, and other implementations can test themselves against the same files. `tests/models/valid` is a model whose documents agree, and each directory in `tests/models/invalid` is a model that fails only the check it is named after. `uv run pytest` runs them all.
 
 The [site](https://benomahony.github.io/ddd-spec) is built with [Zine](https://zine-ssg.io) from this README. After changing it, run `python3 docs/sync.py` to regenerate the pages, and `zine` in `docs` to preview them.
+
+Every commit that passes CI on `main` is released one patch version up, with the validator and the schema attached. Run the Release workflow by hand to raise the minor or major version instead.

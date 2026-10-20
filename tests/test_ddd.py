@@ -1,3 +1,4 @@
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -49,3 +50,9 @@ def test_files_without_a_ddd_name_are_not_searched(tmp_path: Path) -> None:
     result = runner.invoke(app, ["check", str(tmp_path)])
     assert result.exit_code == 2
     assert "no ddd.yaml or *.ddd.yaml files" in result.output
+
+
+def test_version_names_the_package_version() -> None:
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert result.output == f"ddd {version('ddd-spec')}\n"

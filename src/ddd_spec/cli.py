@@ -1,3 +1,4 @@
+from importlib.metadata import version
 from pathlib import Path
 from typing import Annotated
 
@@ -9,8 +10,14 @@ from ddd_spec.load import FILENAME, SUFFIX, discover, load
 app = typer.Typer(add_completion=False)
 
 
+def show_version(requested: bool) -> None:
+    if requested:
+        typer.echo(f"ddd {version('ddd-spec')}")
+        raise typer.Exit()
+
+
 @app.callback()
-def main() -> None:
+def main(_: Annotated[bool, typer.Option("--version", callback=show_version, is_eager=True, help="Show the version and exit.")] = False) -> None:
     """Validate ddd.yaml domain models."""
 
 

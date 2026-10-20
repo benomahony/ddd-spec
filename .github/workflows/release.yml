@@ -1,0 +1,104 @@
+name: Release
+
+# Every commit that passes CI on main is released, one patch version up from the latest v* tag
+# (0.1.0 if there is none). To raise the minor or major version instead, run this by hand:
+#   gh workflow run release -f bump=minor
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to raise
+        type: choice
+        options: [patch, minor, major]
+        default: minor
+
+permissions:
+  contents: write
+
+# Releases queue rather than race, so two never take the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # A release by hand hasn't been through CI yet; one after CI on main has.
+  test:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    needs: test
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' && needs.test.result == 'success' ||
+       github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+      BUMP: ${{ inputs.bump || 'patch' }}
+    outputs:
+      commit: ${{ steps.version.outputs.commit }}
+      version: ${{ steps.version.outputs.version }}
+      skip: ${{ steps.version.outputs.skip }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.COMMIT }}
+          fetch-depth: 0
+      - name: Choose the version
+        id: version
+        run: |
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ] && git tag --points-at HEAD | grep -q '^v'; then
+            echo "::notice::$COMMIT is already released as $(git tag --points-at HEAD | head -n1)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          if [ -z "$latest" ]; then
+            next=0.1.0
+          else
+            v=${latest#v}; major=${v%%.*}; rest=${v#*.}; minor=${rest%%.*}; patch=${rest#*.}
+            case "$BUMP" in
+              major) next=$((major + 1)).0.0 ;;
+              minor) next=$major.$((minor + 1)).0 ;;
+              *) next=$major.$minor.$((patch + 1)) ;;
+            esac
+          fi
+          echo "Releasing v$next (after ${latest:-no release})."
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: version
+    if: always() && needs.version.result == 'success' && needs.version.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.version.outputs.commit }}
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      - name: Build the validator
+        run: |
+          uv version "$VERSION" --frozen
+          uv build
+      - name: Check the version it reports
+        run: |
+          built=$(uvx --from "dist/ddd_spec-$VERSION-py3-none-any.whl" ddd --version)
+          if [ "$built" != "ddd $VERSION" ]; then
+            echo "::error::The wheel reports '$built', not ddd $VERSION; check that the version step set pyproject.toml."
+            exit 1
+          fi
+      # Creates the tag on the tested commit, with the schema beside the validator.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "v$VERSION" dist/* ddd.schema.json
+          --repo "$GITHUB_REPOSITORY" --target "${{ needs.version.outputs.commit }}"
+          --title "ddd-spec v$VERSION" --generate-notes
