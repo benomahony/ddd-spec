@@ -66,6 +66,14 @@ uvx --with rfc3986-validator check-jsonschema --schemafile https://benomahony.gi
 
 The schema checks each file on its own. The [rules](https://benomahony.github.io/ddd-spec/checks/) that span files, such as a context using a contract nobody provides, or a context's code using a word its language bans, are for tools that read whole repositories.
 
+For coding agents, check the model with a linter that implements those rules, and give the agent the ddd-spec skill so it reads a file's context before changing it and edits the model correctly. In Claude Code, the plugin adds the skill and checks every model file the agent edits:
+
+```sh
+/plugin install ddd-spec --marketplace benomahony/ddd-spec
+```
+
+Other agents that read Agent Skills can use [the skill](https://github.com/benomahony/ddd-spec/tree/main/plugins/ddd-spec/skills/ddd-spec) directly; the [guide](https://benomahony.github.io/ddd-spec/guide/#agents) has the details.
+
 ## Documentation
 
 * [Getting started](https://benomahony.github.io/ddd-spec/getting-started/): model one context, link it to the code, and grow from there.
@@ -80,6 +88,8 @@ This repository is the specification: its text, its schema, examples, and the si
 `tests/valid` holds files the schema must accept and `tests/invalid` files it must reject, each with exactly one fault. `tests/models` is a conformance suite for tools that check the rules beyond the schema: `valid` is a repository whose model agrees with itself and its code, and each directory in `invalid` breaks only the rule it is named after. Every rule in the specification has one.
 
 The [site](https://benomahony.github.io/ddd-spec) is built with [Zine](https://zine-ssg.io). Its home page comes from this README, its specification and checks pages from `spec/` and `tests/models`, and its guides from `docs/content`. After changing any of them, run `python3 docs/sync.py` to regenerate the pages, and `zine` in `docs` to preview them.
+
+The agent plugin lives in `plugins/ddd-spec`, listed in the marketplace at `.claude-plugin/marketplace.json`. Its skill's copy of the specification, `references/spec.md`, is written by `docs/sync.py` too, so it always matches the latest version. Check a change with `claude plugin validate .`.
 
 The diagrams are drawn in [Excalidraw](https://excalidraw.com): each `.svg` in `docs/assets/diagrams` has its `.excalidraw` source beside it. Open the source there, change it, and export it over the `.svg` with a transparent background. Headings use Excalidraw's handwriting font, [Excalifont](https://plus.excalidraw.com/excalifont), under the SIL Open Font License; its licence is in `docs/assets/fonts`.
 

@@ -1,0 +1,13 @@
+{
+  "name": "ddd-spec",
+  "displayName": "ddd-spec",
+  "description": "Helps coding agents follow and edit ddd-spec domain models: a skill that reads a file's bounded context, language and invariants before a change and keeps the model true, and a hook that checks every edited model file against the schema.",
+  "author": {
+    "name": "benomahony",
+    "url": "https://github.com/benomahony"
+  },
+  "homepage": "https://benomahony.github.io/ddd-spec",
+  "repository": "https://github.com/benomahony/ddd-spec",
+  "license": "MIT",
+  "keywords": ["ddd", "domain-driven-design", "bounded-context", "ubiquitous-language", "ddd-spec"]
+}

@@ -19,11 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      # The home, specification and checks pages come from README.md, spec/ and the test models.
+      # The home, specification and checks pages, and the agent skill's copy of the specification,
+      # come from README.md, spec/ and the test models.
       - name: Check the generated pages are current
         run: |
           python3 docs/sync.py
-          git diff --exit-code docs/content
+          git diff --exit-code docs/content plugins/ddd-spec/skills/ddd-spec/references
 
       - name: Install Zine
         run: |
