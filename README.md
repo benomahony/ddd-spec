@@ -1,8 +1,8 @@
 # ddd-spec
 
-A domain model that lives next to the code: which bounded contexts a repository holds, what their words mean, which rules every change must preserve, and how the contexts depend on each other. People, coding agents and tools all read the same files.
+Take the domain model off the whiteboard and into the repository: the bounded contexts, what their words mean, the rules every change must preserve, and how the contexts depend on each other, written down so that people, coding agents and tools all work from the same model.
 
-![On the left, a whiteboard sketch: budgeting, claims and stripe as hand-drawn boxes, a questioning arrow labelled approved expense, and a sticky note saying a commitment is money set aside, paid or not. An arrow leads to the same model, written down in ddd.yaml: budgeting's language defines commitment, and budgeting uses claims, translating ExpenseApproved version 1](docs/assets/diagrams/whiteboard-to-model.svg "From the whiteboard to the repository: the sketch, written down as a model that people, agents and tools can check")
+![On the left, a whiteboard sketch: budgeting, claims and stripe as hand-drawn boxes, a questioning arrow labelled approved expense, and a sticky note saying a commitment is money set aside, paid or not. An arrow leads to the same model, written down in ddd.yaml: budgeting's language defines commitment, and budgeting uses claims, translating ExpenseApproved version 1](docs/assets/diagrams/whiteboard-to-model.svg "The same model twice: sketched to think with, written down to check against")
 
 ```yaml
 # ddd.yaml
