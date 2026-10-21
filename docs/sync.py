@@ -63,7 +63,7 @@ def specification() -> str:
     assert text[0] == f"# ddd-spec {LATEST}", f"{SPEC} must start with '# ddd-spec {LATEST}'"
     rules = text.index("## Rules")
     linked = [re.sub(r"^\| `([a-z-]+)` \|", r"| [`\1`]($link.page('checks').ref('\1')) |", line) for line in text[rules:]]
-    return page(f"Specification {LATEST}", "Every file, field and rule of ddd-spec, normatively.", "structured.shtml", lift(text[1:rules] + linked, "specification"), 3)
+    return page(f"Specification {LATEST}", "Every file, field and rule of ddd-spec, normatively.", "page.shtml", lift(text[1:rules] + linked, "specification"), 3)
 
 
 def rules() -> list[tuple[str, str, str]]:
@@ -98,7 +98,7 @@ def checks() -> str:
             body += [heading(f"# {title}"), ""]
             current = title
         body += [f"## [`{rule}`]($heading.id('{rule}'))", "", f"A model breaks it when {breach}.", ""] + example(rule)
-    return page("Checks", "Every rule a tool checks, each with a model that breaks it.", "structured.shtml", body, 2)
+    return page("Checks", "Every rule a tool checks, each with a model that breaks it.", "page.shtml", body, 2)
 
 
 def examples(folder: Path) -> None:

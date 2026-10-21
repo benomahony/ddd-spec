@@ -2,7 +2,7 @@
 .title = "Checks",
 .description = "Every rule a tool checks, each with a model that breaks it.",
 .date = .date("2026-10-20T00:00:02"),
-.layout = "structured.shtml",
+.layout = "page.shtml",
 ---
 
 Every rule of the [specification]($link.page('specification').ref('rules')), each with a model that breaks it and nothing else. A tool that implements a rule SHOULD report it for its model, and nothing for the [consistent model](https://github.com/benomahony/ddd-spec/tree/main/tests/models/valid), so the models double as a conformance suite.
