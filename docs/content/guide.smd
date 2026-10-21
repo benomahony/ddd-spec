@@ -174,7 +174,23 @@ A model is only useful while it matches the code, so make reading it and checkin
 
 ## [With coding agents]($heading.id('agents'))
 
-Tell agents about the model in the file they read for instructions, such as `AGENTS.md` or `CLAUDE.md`:
+A coding agent needs two things from a model: knowing it well enough to work within it, and finding out when a change breaks it.
+
+**Check with a compatible linter.** The schema catches mistakes within one file. The [rules]($link.page('checks')) that span files and reach into the code, such as references that resolve, contracts that are published and current, and words a context bans appearing in its code, need a linter that implements them. Run it where the agent works and in CI, so a change that breaks the model fails where the agent can see it and fix it. A linter says which rules it checks; dddlint and zanity are adding support.
+
+**Give the agent the skill.** The ddd-spec skill teaches an agent to find a file's context before changing it, to keep to that context's language and invariants, to check who uses a contract before changing it, and to edit model files correctly, with honest statuses, stable ids and pinned versions.
+
+In Claude Code, install the plugin. It adds the skill, and a hook that checks every model file the agent edits against the schema and tells the agent what to fix:
+
+```sh
+/plugin install ddd-spec --marketplace benomahony/ddd-spec
+```
+
+On Claude Code before 2.1.275, add the marketplace first with `/plugin marketplace add benomahony/ddd-spec`, then run `/plugin install ddd-spec@ddd-spec`.
+
+Other agents that read [Agent Skills](https://agentskills.io) can use the skill as it is: copy [`plugins/ddd-spec/skills/ddd-spec`](https://github.com/benomahony/ddd-spec/tree/main/plugins/ddd-spec/skills/ddd-spec) into the folder your agent loads skills from. It carries the specification with it, so it works offline.
+
+**Or tell the agent in its instructions.** For an agent without skills, put the essentials in the file it reads for instructions, such as `AGENTS.md`:
 
 ```markdown
 ## Domain model
@@ -184,6 +200,7 @@ This repository describes its domain model in `ddd.yaml`, following https://beno
 * Before changing a file, find the context whose `code` includes it. Use the terms its `language` defines, never the words it lists under `not`, and keep every invariant it lists true.
 * Before changing a contract a context `provides`, check which contexts `use` it.
 * When a change adds a concept, a rule or a dependency between contexts, update the model in the same change.
+* After changing the model, or the code it links to, run the repository's ddd-spec linter and fix what it reports.
 ```
 
 ## [In CI]($heading.id('ci'))

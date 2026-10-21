@@ -1,0 +1,15 @@
+{
+  "name": "ddd-spec",
+  "description": "Plugins for working with ddd-spec domain models",
+  "owner": {
+    "name": "benomahony",
+    "url": "https://github.com/benomahony"
+  },
+  "plugins": [
+    {
+      "name": "ddd-spec",
+      "source": "./plugins/ddd-spec",
+      "description": "Follow and edit ddd-spec domain models: a skill for a file's context, language and invariants, and a hook that checks edited model files against the schema"
+    }
+  ]
+}

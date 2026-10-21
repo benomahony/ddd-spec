@@ -8,6 +8,7 @@ CONTENT = DOCS / "content"
 LATEST = max((folder.name.removeprefix("v") for folder in (REPO / "spec").glob("v*")), key=lambda version: tuple(map(int, version.split("."))))
 SPEC = REPO / "spec" / f"v{LATEST}" / "spec.md"
 MODELS = REPO / "tests" / "models" / "invalid"
+SKILL_SPEC = REPO / "plugins" / "ddd-spec" / "skills" / "ddd-spec" / "references" / "spec.md"
 TITLE = "# ddd-spec"
 LANGUAGES = {".py": "python", ".rs": "rust", ".zig": "zig", ".yaml": "yaml", ".yml": "yaml"}
 
@@ -115,6 +116,9 @@ def main() -> None:
     for name, text in {"index.smd": index(), "specification.smd": specification(), "checks.smd": checks()}.items():
         (CONTENT / name).write_text(text)
         print(CONTENT / name)
+    SKILL_SPEC.parent.mkdir(parents=True, exist_ok=True)
+    SKILL_SPEC.write_text(SPEC.read_text())
+    print(SKILL_SPEC)
     if sys.argv[1:2] == ["--examples"]:
         examples(Path(sys.argv[2]))
 
