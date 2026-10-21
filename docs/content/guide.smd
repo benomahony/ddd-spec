@@ -13,7 +13,7 @@ A bounded context is the part of a system in which each word keeps one meaning. 
 
 You don't need to model a whole system to start. Model the context you are changing, and add others as they become relevant: a missing context is undocumented, not wrong.
 
-Give each context its `code`. That is what lets `ddd-spec explain` answer "which context am I in?" for a file. Globs are read in order, and a glob starting with `!` takes files back out:
+Give each context its `code`. That is what answers "which context am I in?" for a file. Globs are read in order, and a glob starting with `!` takes files back out:
 
 ```yaml
 code:
@@ -24,7 +24,7 @@ code:
 
 A file belongs to one context. When two contexts genuinely share code, record a [shared kernel](#shared-kernels) and list its files there.
 
-`classification` says whether a context is `core`, where the organisation competes, `supporting`, or `generic`, where a bought or shared solution would do. It matters because a core context should own its model: the validator reports a core context that conforms to a context that isn't core.
+`classification` says whether a context is `core`, where the organisation competes, `supporting`, or `generic`, where a bought or shared solution would do. It matters because a core context should own its model: a core context that conforms to a context that isn't core breaks [`core-conforms`]($link.page('checks').ref('core-conforms')).
 
 # [Writing the language]($heading.id('language'))
 
@@ -41,7 +41,7 @@ language:
     means: The event's approved allocation minus its active commitments.
 ```
 
-List in `not` the words that cause confusion: synonyms people reach for, or another context's word for something nearby. The validator reports them anywhere in the context's code, with plurals, so `not: [hold]` catches `self.holds`.
+List in `not` the words that cause confusion: synonyms people reach for, or another context's word for something nearby. The rule [`avoided-word`]($link.page('checks').ref('avoided-word')) finds them anywhere in the context's code, plurals included, so `not: [hold]` catches `self.holds`.
 
 When a term is another context's term translated into this one, record where it comes from. That makes the translation, and the anticorruption layer behind it, visible:
 
@@ -62,7 +62,7 @@ An invariant is a rule that is true after every change. Write it as a plain sent
 * `implemented` for a rule the code keeps, with `enforced_by` pointing at the code that keeps it and `verified_by` at a test that shows it;
 * `deprecated` for a rule on its way out.
 
-`implemented` is a claim, and the links are its evidence. The validator reports an implemented invariant with no evidence, and checks that each linked file defines the symbol named. Tests that their language names with a string are linked by that string in quotes:
+`implemented` is a claim, and the links are its evidence: an implemented invariant without them breaks [`implemented-without-evidence`]($link.page('checks').ref('implemented-without-evidence')), and each linked file must define the symbol named. Tests that their language names with a string are linked by that string in quotes:
 
 ```yaml
 invariants:
@@ -107,7 +107,7 @@ A context lists each context it depends on in `uses`, with how it treats that co
 | `conform` | adopting the other model as it is costs less than translating it, typically for generic or supporting work |
 | `share` | two contexts maintain some code together and change it together; see [shared kernels](#shared-kernels) |
 
-Pin each contract you use to the version you were built against, as `ExpenseApproved@1`. When its owner moves to a new version, the validator reports every context still built against the old one.
+Pin each contract you use to the version you were built against, as `ExpenseApproved@1`. When its owner moves to a new version, every context still built against the old one breaks [`outdated-contract`]($link.page('checks').ref('outdated-contract')).
 
 `customers` records the contexts an upstream context plans for, and `partners` the contexts that plan together. Read together with `uses`, these give the relationships of Evans's *Domain-Driven Design*, from open host service to conformist; the [specification]($link.page('specification').ref('relationships')) has the table.
 
@@ -138,9 +138,9 @@ contexts:
   budgeting: domains/budgeting.yaml
 ```
 
-The validator reads imports that are paths. It fetches imports that are URLs only with `--remote`, and until it does, it leaves references into them unchecked. A misspelt manifest id is always an error, because every manifest a file refers to must be imported.
+A tool reads imports that are paths, and fetches imports that are URLs only when asked. Until it has read a manifest, references into it are undocumented rather than wrong. A misspelt manifest id is always an error, though, because every manifest a file refers to must be imported.
 
-A context implemented by several repositories is defined once, in one manifest. The others say which of their files they hold for it, so `explain` can answer for those files too:
+A context implemented by several repositories is defined once, in one manifest. The others say which of their files they hold for it, so those files can be traced to the context too:
 
 ```yaml
 implements:
@@ -172,16 +172,16 @@ Tell agents about the model in the file they read for instructions, such as `AGE
 ```markdown
 ## Domain model
 
-This repository describes its domain model in `ddd.yaml`.
+This repository describes its domain model in `ddd.yaml`, following https://benomahony.github.io/ddd-spec.
 
-* Before changing a file, run `uvx ddd-spec explain <file>`. Use the terms it defines, never the words it lists under `not`, and keep every invariant it lists true.
+* Before changing a file, find the context whose `code` includes it. Use the terms its `language` defines, never the words it lists under `not`, and keep every invariant it lists true.
+* Before changing a contract a context `provides`, check which contexts `use` it.
 * When a change adds a concept, a rule or a dependency between contexts, update the model in the same change.
-* Before finishing, run `uvx ddd-spec check` and fix what it reports.
 ```
 
 ## [In CI]($heading.id('ci'))
 
-Run the check on every pull request, so a change that breaks the model, or a model that falls behind the code, is caught in review:
+Check every model file against the schema on each pull request:
 
 ```yaml
 name: Domain model
@@ -192,24 +192,25 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v8
-      - run: uvx ddd-spec check
+      - run: uvx --with rfc3986-validator check-jsonschema --schemafile https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json ddd.yaml domains/*.yaml
 ```
 
 ## [Before each commit]($heading.id('pre-commit'))
 
-With [pre-commit](https://pre-commit.com), add a local hook:
+With [pre-commit](https://pre-commit.com), use check-jsonschema's hook:
 
 ```yaml
 repos:
-  - repo: local
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.38.2
     hooks:
-      - id: ddd-spec
-        name: ddd-spec check
-        entry: uvx ddd-spec check
-        language: system
-        pass_filenames: false
-        always_run: true
+      - id: check-jsonschema
+        files: ^(ddd\.yaml|domains/.*\.yaml)$
+        args: [--schemafile, https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json]
+        additional_dependencies: [rfc3986-validator]
 ```
+
+The schema checks each file on its own. The [rules]($link.page('checks')) across files and against the code are for tools that read the whole repository.
 
 # [What to leave out]($heading.id('leave-out'))
 

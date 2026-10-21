@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
       - name: Every schema is valid JSON Schema
         run: uvx check-jsonschema --check-metaschema spec/v*/ddd.schema.json
@@ -37,10 +39,18 @@ jobs:
             fi
           done
           exit $status
-
-  validator:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-      - run: uv run pytest
+      - name: Every whole file the docs and the example models show is valid
+        run: |
+          python3 docs/sync.py --examples examples
+          uvx --with rfc3986-validator check-jsonschema --schemafile "$SCHEMA" examples/*.yaml tests/models/valid/ddd.yaml tests/models/valid/domains/*.yaml tests/models/ledger/ddd.yaml
+      # A released version's text and schema are what files written against it rely on.
+      - name: Released versions never change
+        run: |
+          status=0
+          for tag in $(git tag --list 'v*'); do
+            if [ -d "spec/$tag" ] && ! git diff --quiet "$tag" HEAD -- "spec/$tag"; then
+              echo "::error file=spec/$tag::spec/$tag has changed since it was released; start the change in a new version's folder"
+              status=1
+            fi
+          done
+          exit $status

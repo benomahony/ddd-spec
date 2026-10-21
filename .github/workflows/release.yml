@@ -1,9 +1,7 @@
 name: Release
 
-# A commit that passes CI on main and changes the validator or the schema is released. Its
-# version is the latest spec version in spec/ with the next patch number, so adding
-# spec/v0.2 releases 0.2.0. A commit that changes neither, such as a README edit, is not
-# released. Run this by hand to release the current commit regardless.
+# When CI passes on main, each version in spec/ that has no release yet is released as v<version>,
+# with its text and schema attached. A released version's folder never changes, which CI checks.
 on:
   workflow_run:
     workflows: [CI]
@@ -14,7 +12,7 @@ on:
 permissions:
   contents: write
 
-# Releases queue rather than race, so two never take the same version.
+# Releases queue rather than race, so a version is never released twice.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -25,7 +23,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/ci.yml
 
-  version:
+  release:
     needs: test
     if: >-
       always() &&
@@ -34,75 +32,22 @@ jobs:
     runs-on: ubuntu-latest
     env:
       COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
-    outputs:
-      commit: ${{ steps.version.outputs.commit }}
-      version: ${{ steps.version.outputs.version }}
-      skip: ${{ steps.version.outputs.skip }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.COMMIT }}
           fetch-depth: 0
-      - name: Choose the version
-        id: version
-        run: |
-          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
-          if [ "$GITHUB_EVENT_NAME" = workflow_run ] && git tag --points-at HEAD | grep -q '^v'; then
-            echo "::notice::$COMMIT is already released as $(git tag --points-at HEAD | head -n1)."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          spec=$(ls -d spec/v*/ | sort -V | tail -n1)
-          spec=${spec#spec/v}
-          spec=${spec%/}
-          latest=$(git tag --list "v$spec.*" --sort=-v:refname | head -n1)
-          if [ "$GITHUB_EVENT_NAME" = workflow_run ] && [ -n "$latest" ] && git diff --quiet "$latest" HEAD -- src spec pyproject.toml uv.lock; then
-            echo "::notice::Nothing released since $latest changed the validator or the schema."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ -z "$latest" ]; then
-            next=$spec.0
-          else
-            next=$spec.$((${latest##*.} + 1))
-          fi
-          echo "Releasing v$next (after ${latest:-no release})."
-          echo "version=$next" >> "$GITHUB_OUTPUT"
-
-  publish:
-    needs: version
-    if: always() && needs.version.result == 'success' && needs.version.outputs.skip != 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
-    env:
-      VERSION: ${{ needs.version.outputs.version }}
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          ref: ${{ needs.version.outputs.commit }}
-      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-      - name: Build the validator
-        run: |
-          uv version "$VERSION" --frozen
-          uv build
-      - name: Check the version it reports
-        run: |
-          built=$(uvx --from "dist/ddd_spec-$VERSION-py3-none-any.whl" ddd-spec --version)
-          if [ "$built" != "ddd-spec $VERSION" ]; then
-            echo "::error::The wheel reports '$built', not ddd-spec $VERSION; check that the version step set pyproject.toml."
-            exit 1
-          fi
-      # Creates the tag on the tested commit, with the schema for this spec version beside the validator.
-      - name: Publish the release
+      - name: Release each version that has no release yet
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "v$VERSION" dist/* "spec/v${VERSION%.*}/ddd.schema.json"
-          --repo "$GITHUB_REPOSITORY" --target "${{ needs.version.outputs.commit }}"
-          --title "ddd-spec v$VERSION" --generate-notes
-      # Needs PyPI's trusted publishing set up for this workflow, then the PUBLISH_TO_PYPI variable set to true.
-      - name: Publish to PyPI
-        if: vars.PUBLISH_TO_PYPI == 'true'
-        run: uv publish --trusted-publishing always
+        run: |
+          for folder in spec/v*/; do
+            version=${folder#spec/}
+            version=${version%/}
+            if git rev-parse -q --verify "refs/tags/$version" > /dev/null; then
+              continue
+            fi
+            gh release create "$version" "${folder}ddd.schema.json" "${folder}spec.md" \
+              --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --title "ddd-spec ${version#v}" \
+              --notes "The text and schema of ddd-spec ${version#v}. Files written against it point at https://benomahony.github.io/ddd-spec/$version/ddd.schema.json, which never changes."
+          done

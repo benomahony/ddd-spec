@@ -224,7 +224,7 @@ A tool checks a repository's model at up to four levels and reports each separat
 | 3. Repository links | the files agree with the code they point at |
 | 4. Evidence | the code and tests linked as evidence run and pass |
 
-A tool MAY stop after level 1 when it fails, since the later levels rely on valid files. Passing every level establishes that the model is consistent with itself and the code; it doesn't establish that the domain is modelled well. The prose of `purpose`, `scope`, `means` and `statement` is for people and agents to read, and this version defines no rules about it.
+Any JSON Schema validator checks level 1 with the published schema, apart from the YAML restrictions it can't see. A tool MAY check only some levels or rules, and SHOULD say which it checks. A tool MAY stop after level 1 when it fails, since the later levels rely on valid files. Passing every level establishes that the model is consistent with itself and the code; it doesn't establish that the domain is modelled well. The prose of `purpose`, `scope`, `means` and `statement` is for people and agents to read, and this version defines no rules about it.
 
 ## [Level 1: structure]($heading.id('level-1-structure'))
 

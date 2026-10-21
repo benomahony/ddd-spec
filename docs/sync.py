@@ -1,15 +1,11 @@
-import os
 import re
+import sys
 from pathlib import Path
-
-from typer.testing import CliRunner
-
-from ddd_spec.cli import app
-from ddd_spec.load import LATEST
 
 DOCS = Path(__file__).parent.resolve()
 REPO = DOCS.parent
 CONTENT = DOCS / "content"
+LATEST = max((folder.name.removeprefix("v") for folder in (REPO / "spec").glob("v*")), key=lambda version: tuple(map(int, version.split("."))))
 SPEC = REPO / "spec" / f"v{LATEST}" / "spec.md"
 MODELS = REPO / "tests" / "models" / "invalid"
 TITLE = "# ddd-spec"
@@ -72,40 +68,27 @@ def specification() -> str:
 def rules() -> list[tuple[str, str, str]]:
     text = SPEC.read_text()
     found = []
-    for level in re.findall(r"^### (Level [123]: [a-z ]+)\n(.*?)(?=^### |^## )", text[text.index("## Rules") :], re.MULTILINE | re.DOTALL):
-        title, table = level
+    for title, table in re.findall(r"^### (Level [123]: [a-z ]+)\n(.*?)(?=^### |^## )", text[text.index("## Rules") :], re.MULTILINE | re.DOTALL):
         found += [(title, rule, breach) for rule, breach in re.findall(r"^\| `([a-z-]+)` \| (.+?) \|$", table, re.MULTILINE)]
     assert found, f"{SPEC} lists no rules under ## Rules"
     return found
 
 
-def fence(path: Path, root: Path) -> list[str]:
-    language = LANGUAGES.get(path.suffix, "")
-    return [f"`{path.relative_to(root).as_posix()}`", "", f"```{language}", path.read_text().rstrip(), "```", ""]
-
-
 def example(rule: str) -> list[str]:
     root = MODELS / rule
-    assert root.is_dir(), f"{rule} has no failing model in {MODELS}; add one"
-    manifests = ["ddd.yaml"] if (root / "ddd.yaml").is_file() else sorted(path.relative_to(root).as_posix() for path in root.glob("*/ddd.yaml"))
-    files = sorted(path for path in root.rglob("*") if path.is_file())
-    here = Path.cwd()
-    os.chdir(root)
-    try:
-        result = CliRunner().invoke(app, ["check", *manifests])
-    finally:
-        os.chdir(here)
-    assert result.exit_code == 1, f"the {rule} model passed: {result.output}"
-    shown = "$ ddd-spec check" if manifests == ["ddd.yaml"] else f"$ ddd-spec check {' '.join(manifests)}"
+    assert root.is_dir(), f"{rule} has no example model in {MODELS}; add one that breaks it and nothing else"
     lines = []
-    for path in files:
-        lines += fence(path, root)
-    return lines + ["```console", shown, result.output.rstrip(), "```", ""]
+    for path in sorted(path for path in root.rglob("*") if path.is_file()):
+        lines += [f"`{path.relative_to(root).as_posix()}`", "", f"```{LANGUAGES.get(path.suffix, '')}", path.read_text().rstrip(), "```", ""]
+    return lines
 
 
 def checks() -> str:
+    listed = {rule for _, rule, _ in rules()}
+    unlisted = sorted({path.name for path in MODELS.iterdir()} - listed)
+    assert not unlisted, f"{MODELS} has models for rules the specification doesn't list: {unlisted}"
     body = [
-        "Every rule of the [specification]($link.page('specification').ref('rules')), with a model that breaks it and what `ddd-spec check` reports for it. Each example is a test of the validator, so what this page shows is what the validator does.",
+        "Every rule of the [specification]($link.page('specification').ref('rules')), each with a model that breaks it and nothing else. A tool that implements a rule SHOULD report it for its model, and nothing for the [consistent model](https://github.com/benomahony/ddd-spec/tree/main/tests/models/valid), so the models double as a conformance suite.",
         "",
     ]
     current = None
@@ -117,11 +100,22 @@ def checks() -> str:
     return page("Checks", "Every rule a tool checks, each with a model that breaks it.", "page.shtml", body, 2)
 
 
+def examples(folder: Path) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    sources = [REPO / "README.md", *sorted(path for path in CONTENT.glob("*.smd") if path.name != "checks.smd")]
+    for source in sources:
+        for number, block in enumerate(re.findall(r"```yaml\n(.*?)```", source.read_text(), re.DOTALL)):
+            if re.search(r"^(ddd_spec_version|purpose):", block, re.MULTILINE):
+                (folder / f"{source.stem}-{number}.yaml").write_text(block)
+
+
 def main() -> None:
     assert CONTENT.is_dir(), f"{CONTENT} is missing; the site's pages live there"
     for name, text in {"index.smd": index(), "specification.smd": specification(), "checks.smd": checks()}.items():
         (CONTENT / name).write_text(text)
         print(CONTENT / name)
+    if sys.argv[1:2] == ["--examples"]:
+        examples(Path(sys.argv[2]))
 
 
 if __name__ == "__main__":

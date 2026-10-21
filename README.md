@@ -47,7 +47,7 @@ policies:
 
 ## Principles
 
-1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules, the evidence that they hold, and who depends on it. `ddd-spec explain` prints exactly that.
+1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules, the evidence that they hold, and who depends on it.
 2. **Each fact is declared once, by whoever owns it.** A context lists the contracts it provides and the contracts it uses. Who is upstream follows from those facts, so it can never contradict them.
 3. **Words belong to a context.** The same word may mean different things in different contexts, and a translation between them is written down.
 4. **Absent means undocumented, but a name must resolve.** A model can describe as much or as little as is known, yet a misspelt name is an error, not an unknown.
@@ -56,19 +56,13 @@ policies:
 
 ## Getting started
 
-Write a `ddd.yaml` at the root of your repository, then check it and the code it points at:
+Write a `ddd.yaml` at the root of your repository. Editors running the YAML language server complete and validate it against the [schema](https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json) with the `$schema` comment shown above, and any JSON Schema validator checks it in CI:
 
 ```sh
-uvx ddd-spec check
+uvx --with rfc3986-validator check-jsonschema --schemafile https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json ddd.yaml domains/*.yaml
 ```
 
-Before changing a file, ask which contexts it belongs to and what they promise:
-
-```sh
-uvx ddd-spec explain src/budgeting/budget.py
-```
-
-Until the validator is on PyPI, run it with `uvx --from git+https://github.com/benomahony/ddd-spec ddd-spec`.
+The schema checks each file on its own. The [rules](https://benomahony.github.io/ddd-spec/checks/) that span files, such as a context using a contract nobody provides, or a context's code using a word its language bans, are for tools that read whole repositories.
 
 ## Documentation
 
@@ -76,17 +70,14 @@ Until the validator is on PyPI, run it with `uvx --from git+https://github.com/b
 * [Modelling guide](https://benomahony.github.io/ddd-spec/guide/): choosing contexts, writing their language, recording rules and evidence, and connecting repositories.
 * [Specification 0.1](https://benomahony.github.io/ddd-spec/specification/): every field and rule, normatively.
 * [Checks](https://benomahony.github.io/ddd-spec/checks/): every rule a tool checks, each with a model that breaks it.
-* [Command line](https://benomahony.github.io/ddd-spec/cli/): `ddd-spec check` and `ddd-spec explain`.
 
 ## Contributing
 
-Each version of the specification lives in `spec/v<version>/`: its text, `spec.md`, and its schema, `ddd.schema.json`. That folder is the only place a version is defined, and a released version's folder never changes; the next version starts as a copy in a new folder.
+This repository is the specification: its text, its schema, examples, and the site. Each version lives in `spec/v<version>/`, with its text in `spec.md` and its schema in `ddd.schema.json`. That folder is the only place a version is defined. A released version's folder never changes, which CI checks; the next version starts as a copy in a new folder, and is released, as `v<version>`, when it reaches `main`.
 
-`tests/valid` holds files the schema must accept and `tests/invalid` files it must reject, each with exactly one fault. `tests/models/valid` is a repository whose model agrees with itself and its code, and each directory in `tests/models/invalid` breaks only the rule it is named after. Every rule in the specification has one, and other implementations can test themselves against the same files. `uv run pytest` runs them all.
+`tests/valid` holds files the schema must accept and `tests/invalid` files it must reject, each with exactly one fault. `tests/models` is a conformance suite for tools that check the rules beyond the schema: `valid` is a repository whose model agrees with itself and its code, and each directory in `invalid` breaks only the rule it is named after. Every rule in the specification has one.
 
-The [site](https://benomahony.github.io/ddd-spec) is built with [Zine](https://zine-ssg.io). Its home page comes from this README, its specification and checks pages from `spec/` and the test models, and its guides from `docs/content`. After changing any of them, run `uv run python docs/sync.py` to regenerate the pages, and `zine` in `docs` to preview them.
-
-A commit that passes CI on `main` and changes the validator or the specification is released, as the latest specification version with the next patch number. Releases also go to PyPI once the repository's `PUBLISH_TO_PYPI` variable is `true`, after setting up trusted publishing for the Release workflow on PyPI.
+The [site](https://benomahony.github.io/ddd-spec) is built with [Zine](https://zine-ssg.io). Its home page comes from this README, its specification and checks pages from `spec/` and `tests/models`, and its guides from `docs/content`. After changing any of them, run `python3 docs/sync.py` to regenerate the pages, and `zine` in `docs` to preview them.
 
 ## License
 

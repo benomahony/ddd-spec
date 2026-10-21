@@ -21,7 +21,6 @@
 					<li><a href="$site.page('guide').link()">Modelling guide</a></li>
 					<li><a href="$site.page('specification').link()">Specification</a></li>
 					<li><a href="$site.page('checks').link()">Checks</a></li>
-					<li><a href="$site.page('cli').link()">Command line</a></li>
 				</ul>
 				<div class="external">
 					<a href="https://github.com/benomahony/ddd-spec">Source</a>

@@ -50,7 +50,7 @@ policies:
 
 # [Principles]($heading.id('principles'))
 
-1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules, the evidence that they hold, and who depends on it. `ddd-spec explain` prints exactly that.
+1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules, the evidence that they hold, and who depends on it.
 2. **Each fact is declared once, by whoever owns it.** A context lists the contracts it provides and the contracts it uses. Who is upstream follows from those facts, so it can never contradict them.
 3. **Words belong to a context.** The same word may mean different things in different contexts, and a translation between them is written down.
 4. **Absent means undocumented, but a name must resolve.** A model can describe as much or as little as is known, yet a misspelt name is an error, not an unknown.
@@ -59,19 +59,13 @@ policies:
 
 # [Getting started]($heading.id('getting-started'))
 
-Write a `ddd.yaml` at the root of your repository, then check it and the code it points at:
+Write a `ddd.yaml` at the root of your repository. Editors running the YAML language server complete and validate it against the [schema](https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json) with the `$schema` comment shown above, and any JSON Schema validator checks it in CI:
 
 ```sh
-uvx ddd-spec check
+uvx --with rfc3986-validator check-jsonschema --schemafile https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json ddd.yaml domains/*.yaml
 ```
 
-Before changing a file, ask which contexts it belongs to and what they promise:
-
-```sh
-uvx ddd-spec explain src/budgeting/budget.py
-```
-
-Until the validator is on PyPI, run it with `uvx --from git+https://github.com/benomahony/ddd-spec ddd-spec`.
+The schema checks each file on its own. The [rules](https://benomahony.github.io/ddd-spec/checks/) that span files, such as a context using a contract nobody provides, or a context's code using a word its language bans, are for tools that read whole repositories.
 
 # [Documentation]($heading.id('documentation'))
 
@@ -79,4 +73,3 @@ Until the validator is on PyPI, run it with `uvx --from git+https://github.com/b
 * [Modelling guide](https://benomahony.github.io/ddd-spec/guide/): choosing contexts, writing their language, recording rules and evidence, and connecting repositories.
 * [Specification 0.1](https://benomahony.github.io/ddd-spec/specification/): every field and rule, normatively.
 * [Checks](https://benomahony.github.io/ddd-spec/checks/): every rule a tool checks, each with a model that breaks it.
-* [Command line](https://benomahony.github.io/ddd-spec/cli/): `ddd-spec check` and `ddd-spec explain`.
