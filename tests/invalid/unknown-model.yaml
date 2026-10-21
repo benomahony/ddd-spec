@@ -1,0 +1,5 @@
+purpose: Control the full committed cost of an event.
+uses:
+  expenses:
+    model: adapt
+    contracts: [ExpenseApproved]

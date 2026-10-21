@@ -1,1 +1,88 @@
-# ddd-spec-
+# ddd-spec
+
+Take the domain model off the whiteboard and into the repository: the bounded contexts, what their words mean, the rules every change must preserve, and how the contexts depend on each other, written down so that people, coding agents and tools all work from the same model.
+
+![On the left, a whiteboard sketch: budgeting, claims and stripe as hand-drawn boxes, a questioning arrow labelled approved expense, and a sticky note saying a commitment is money set aside, paid or not. An arrow leads to the same model, written down in ddd.yaml: budgeting's language defines commitment, and budgeting uses claims, translating ExpenseApproved version 1](docs/assets/diagrams/whiteboard-to-model.svg "The same model twice: sketched to think with, written down to check against")
+
+```yaml
+# ddd.yaml
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
+ddd_spec_version: "0.1"
+id: acme.events
+imports:
+  acme.expenses: https://raw.githubusercontent.com/acme/expenses/main/ddd.yaml
+contexts:
+  budgeting: domains/budgeting.yaml
+```
+
+```yaml
+# domains/budgeting.yaml
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
+purpose: Control the full committed cost of an event.
+scope:
+  includes: [Allocating event budgets, Reserving funds for event expenditure]
+  excludes: [Reimbursing employees]
+code: ["src/budgeting/**"]
+language:
+  commitment:
+    means: Funds reserved for approved expenditure, whether or not it has been paid.
+    not: [hold]
+    from: acme.expenses/claims#approved-expense
+  available-budget: The event's approved allocation minus its active commitments.
+invariants:
+  within-allocation:
+    statement: Active commitments never exceed the approved allocation.
+    status: implemented
+    enforced_by: [src/budgeting/budget.py#EventBudget.reserve]
+    verified_by: [tests/test_budget.py#test_rejects_commitment_above_allocation]
+provides:
+  ReserveFunds: { kind: command }
+uses:
+  acme.expenses/claims:
+    model: translate
+    contracts: [ExpenseApproved@1]
+policies:
+  reserve-approved-expenses:
+    when: acme.expenses/claims#ExpenseApproved
+    then: [ReserveFunds]
+```
+
+## Principles
+
+1. **Built for the change in front of you.** From a file, find its context; from the context, its words, its rules, the evidence that they hold, and who depends on it.
+2. **Each fact is declared once, by whoever owns it.** A context lists the contracts it provides and the contracts it uses. Who is upstream follows from those facts, so it can never contradict them.
+3. **Words belong to a context.** The same word may mean different things in different contexts, and a translation between them is written down.
+4. **Absent means undocumented, but a name must resolve.** A model can describe as much or as little as is known, yet a misspelt name is an error, not an unknown.
+5. **Claims are not evidence.** `implemented` is what the author says; the linked code and tests are what a reader can check.
+6. **Contracts live elsewhere.** A contract points at its OpenAPI or AsyncAPI definition instead of repeating it.
+
+## Getting started
+
+Write a `ddd.yaml` at the root of your repository. Editors running the YAML language server complete and validate it against the [schema](https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json) with the `$schema` comment shown above, and any JSON Schema validator checks it in CI:
+
+```sh
+uvx --with rfc3986-validator check-jsonschema --schemafile https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json ddd.yaml domains/*.yaml
+```
+
+The schema checks each file on its own. The [rules](https://benomahony.github.io/ddd-spec/checks/) that span files, such as a context using a contract nobody provides, or a context's code using a word its language bans, are for tools that read whole repositories.
+
+## Documentation
+
+* [Getting started](https://benomahony.github.io/ddd-spec/getting-started/): model one context, link it to the code, and grow from there.
+* [Modelling guide](https://benomahony.github.io/ddd-spec/guide/): choosing contexts, writing their language, recording rules and evidence, and connecting repositories.
+* [Specification 0.1](https://benomahony.github.io/ddd-spec/specification/): every field and rule, normatively.
+* [Checks](https://benomahony.github.io/ddd-spec/checks/): every rule a tool checks, each with a model that breaks it.
+
+## Contributing
+
+This repository is the specification: its text, its schema, examples, and the site. Each version lives in `spec/v<version>/`, with its text in `spec.md` and its schema in `ddd.schema.json`. That folder is the only place a version is defined. A released version's folder never changes, which CI checks; the next version starts as a copy in a new folder, and is released, as `v<version>`, when it reaches `main`.
+
+`tests/valid` holds files the schema must accept and `tests/invalid` files it must reject, each with exactly one fault. `tests/models` is a conformance suite for tools that check the rules beyond the schema: `valid` is a repository whose model agrees with itself and its code, and each directory in `invalid` breaks only the rule it is named after. Every rule in the specification has one.
+
+The [site](https://benomahony.github.io/ddd-spec) is built with [Zine](https://zine-ssg.io). Its home page comes from this README, its specification and checks pages from `spec/` and `tests/models`, and its guides from `docs/content`. After changing any of them, run `python3 docs/sync.py` to regenerate the pages, and `zine` in `docs` to preview them.
+
+The diagrams are drawn in [Excalidraw](https://excalidraw.com): each `.svg` in `docs/assets/diagrams` has its `.excalidraw` source beside it. Open the source there, change it, and export it over the `.svg` with a transparent background. Headings use Excalidraw's handwriting font, [Excalifont](https://plus.excalidraw.com/excalifont), under the SIL Open Font License; its licence is in `docs/assets/fonts`.
+
+## License
+
+MIT

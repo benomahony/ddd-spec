@@ -1,0 +1,361 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json",
+  "title": "ddd-spec",
+  "description": "A ddd.yaml manifest, or a context file it lists.",
+  "if": { "type": "object", "required": ["contexts"] },
+  "then": { "$ref": "#/$defs/manifest" },
+  "else": { "$ref": "#/$defs/context" },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "manifest_id": {
+      "description": "A name for the manifest that is unique across every repository, such as acme.events.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "context_ref": {
+      "description": "A context in this manifest by its name, or in another manifest as <manifest id>/<name>.",
+      "type": "string",
+      "pattern": "^([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*$"
+    },
+    "term_ref": {
+      "description": "A term in another context's language, as <context>#<term id>.",
+      "type": "string",
+      "pattern": "^([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*#[a-z0-9][a-z0-9-]*$"
+    },
+    "glob": {
+      "description": "A glob relative to the repository root, using /, that never leaves it. A leading ! takes the files it matches back out of those matched before it.",
+      "type": "string",
+      "pattern": "^!?(?!/)(?!\\.\\.(/|$))(?!.*/\\.\\.(/|$))[^!\\s]\\S*$"
+    },
+    "globs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/glob" },
+      "uniqueItems": true
+    },
+    "code_ref": {
+      "description": "A file relative to the repository root, using /, optionally followed by # and a symbol in the file's own language, such as Budget.reserve or Budget::reserve, or a test's name in double quotes.",
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\s#]+(#(\"[^\"]+\"|[^\\s\"]+))?$"
+    },
+    "code_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/code_ref" },
+      "uniqueItems": true
+    },
+    "contract_name": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+    },
+    "contract_names": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/contract_name" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "pinned_contract": {
+      "description": "A contract by name, optionally pinned to the version this context was built against, as Name@version.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]*(@[^@\\s]+)?$"
+    },
+    "contract_ref": {
+      "description": "A contract this context provides, by name, or one another context provides, as <context>#<name>.",
+      "type": "string",
+      "pattern": "^(([a-z0-9][a-z0-9.-]*/)?[a-z0-9][a-z0-9-]*#)?[A-Za-z][A-Za-z0-9._-]*$"
+    },
+    "sentence": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sentences": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sentence" }
+    },
+    "status": {
+      "description": "Whether the model describes a plan, the code as it is, or something being removed. Implemented is the author's claim; the linked code and tests are its evidence.",
+      "enum": ["proposed", "implemented", "deprecated"]
+    },
+    "manifest": {
+      "type": "object",
+      "required": ["ddd_spec_version", "id", "contexts"],
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "ddd_spec_version": {
+          "description": "The version of ddd-spec the manifest follows.",
+          "const": "0.1"
+        },
+        "id": { "$ref": "#/$defs/manifest_id" },
+        "name": { "type": "string" },
+        "contexts": {
+          "description": "Each bounded context, by name: a context file relative to this one, or the context itself.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": {
+            "if": { "type": "string" },
+            "then": { "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))\\S+\\.ya?ml$" },
+            "else": { "$ref": "#/$defs/context" }
+          }
+        },
+        "imports": {
+          "description": "Every other manifest this one refers to, by id: a path relative to this file, or an https URL, of its ddd.yaml. Plain http is allowed only to the local machine.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/manifest_id" },
+          "additionalProperties": {
+            "type": "string",
+            "format": "uri-reference",
+            "pattern": "^(https://\\S+|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?/\\S*|(?![A-Za-z][A-Za-z0-9+.-]*:)\\S+)$"
+          }
+        },
+        "implements": {
+          "description": "Contexts defined in another manifest that this repository holds code for.",
+          "type": "object",
+          "propertyNames": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*/[a-z0-9][a-z0-9-]*$" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["code"],
+            "unevaluatedProperties": false,
+            "patternProperties": { "^x-": {} },
+            "properties": {
+              "code": { "$ref": "#/$defs/globs" }
+            }
+          }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "required": ["purpose"],
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "name": { "type": "string" },
+        "purpose": {
+          "description": "The business responsibility of the context.",
+          "$ref": "#/$defs/sentence"
+        },
+        "owner": {
+          "description": "The team accountable for the context.",
+          "type": "string"
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "external": {
+          "description": "The context is a system outside the organisation, such as a payment provider, described by those who depend on it.",
+          "type": "boolean"
+        },
+        "classification": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "domain": { "enum": ["core", "supporting", "generic"] }
+          }
+        },
+        "scope": {
+          "description": "What belongs in this context, and what belongs elsewhere.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "includes": { "$ref": "#/$defs/sentences" },
+            "excludes": { "$ref": "#/$defs/sentences" }
+          }
+        },
+        "code": {
+          "description": "Globs for the files in this repository that implement the context.",
+          "$ref": "#/$defs/globs"
+        },
+        "language": {
+          "description": "Each term the context uses, by a stable id, with what it means here.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/term" }
+        },
+        "aggregates": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/aggregate" }
+        },
+        "policies": {
+          "description": "What the context does when an event arrives: the commands it issues in response.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/policy" }
+        },
+        "invariants": {
+          "description": "Rules every change must preserve.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/invariant" }
+        },
+        "provides": {
+          "description": "The contracts the context owns: commands and queries it accepts, and events it emits.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/contract_name" },
+          "additionalProperties": { "$ref": "#/$defs/contract" }
+        },
+        "uses": {
+          "description": "Each context whose model this one depends on, and how it treats that model.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/context_ref" },
+          "additionalProperties": { "$ref": "#/$defs/use" }
+        },
+        "customers": {
+          "description": "Contexts whose needs this one plans for.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/context_ref" },
+          "uniqueItems": true
+        },
+        "partners": {
+          "description": "Contexts this one succeeds or fails with, and plans together with.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/context_ref" },
+          "uniqueItems": true
+        }
+      },
+      "if": { "required": ["external"], "properties": { "external": { "const": true } } },
+      "then": { "properties": { "code": false } }
+    },
+    "term": {
+      "if": { "type": "string" },
+      "then": { "$ref": "#/$defs/sentence" },
+      "else": {
+        "type": "object",
+        "required": ["means"],
+        "unevaluatedProperties": false,
+        "patternProperties": { "^x-": {} },
+        "properties": {
+          "term": {
+            "description": "The term as people write it, when that differs from its id with hyphens read as spaces.",
+            "type": "string",
+            "minLength": 1
+          },
+          "means": { "$ref": "#/$defs/sentence" },
+          "not": {
+            "description": "Words that must not stand in for this term inside this context.",
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "from": {
+            "description": "The term in another context this one is translated from.",
+            "$ref": "#/$defs/term_ref"
+          },
+          "status": { "$ref": "#/$defs/status" },
+          "code": { "$ref": "#/$defs/code_refs" }
+        }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "purpose": { "$ref": "#/$defs/sentence" },
+        "root": { "$ref": "#/$defs/code_ref" },
+        "status": { "$ref": "#/$defs/status" },
+        "handles": {
+          "description": "The commands from this context's provides that the aggregate accepts.",
+          "$ref": "#/$defs/contract_names"
+        },
+        "emits": {
+          "description": "The events from this context's provides that the aggregate raises.",
+          "$ref": "#/$defs/contract_names"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": ["when", "then"],
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "when": {
+          "description": "The event that sets the policy off.",
+          "$ref": "#/$defs/contract_ref"
+        },
+        "then": {
+          "description": "The commands issued in response.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/contract_ref" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "statement": { "$ref": "#/$defs/sentence" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "invariant": {
+      "type": "object",
+      "required": ["statement", "status"],
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "statement": { "$ref": "#/$defs/sentence" },
+        "status": { "$ref": "#/$defs/status" },
+        "applies_to": {
+          "description": "The aggregates whose consistency boundary holds the rule, once that is decided.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/name" },
+          "uniqueItems": true
+        },
+        "enforced_by": { "$ref": "#/$defs/code_refs" },
+        "verified_by": { "$ref": "#/$defs/code_refs" }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": ["kind"],
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "kind": { "enum": ["command", "query", "event"] },
+        "means": { "$ref": "#/$defs/sentence" },
+        "published": {
+          "description": "Other contexts may rely on the contract, and it changes only by a new version.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "The published version, such as 2 or 2.1.0.",
+          "type": "string",
+          "minLength": 1
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "defined_in": {
+          "description": "Where its format is defined, such as an AsyncAPI or OpenAPI document.",
+          "type": "string",
+          "format": "uri-reference"
+        }
+      },
+      "if": { "required": ["published"], "properties": { "published": { "const": true } } },
+      "then": { "required": ["version"] }
+    },
+    "use": {
+      "type": "object",
+      "required": ["model"],
+      "unevaluatedProperties": false,
+      "patternProperties": { "^x-": {} },
+      "properties": {
+        "model": {
+          "description": "Whether this context adopts the other's model, translates it into its own, or shares its code.",
+          "enum": ["conform", "translate", "share"]
+        },
+        "contracts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pinned_contract" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "code": {
+          "description": "With model share, the globs for the files the two contexts share.",
+          "$ref": "#/$defs/globs"
+        }
+      },
+      "if": { "properties": { "model": { "const": "share" } } },
+      "then": { "required": ["code"] },
+      "else": { "required": ["contracts"], "properties": { "code": false } }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+purpose: Control the full committed cost of an event.
+aggregates:
+  event-budget:
+    root: "#EventBudget"

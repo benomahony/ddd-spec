@@ -1,0 +1,5 @@
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  events:
+    purpose: Run the events part of the business.

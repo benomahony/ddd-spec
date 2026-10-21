@@ -1,0 +1,5 @@
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  travel:
+    purpose: Run the travel part of the business.

@@ -1,0 +1,16 @@
+<extend template="base.shtml">
+<head id="head">
+</head>
+<main id="main">
+	<article>
+		<h1 :text="$page.title"></h1>
+		<p class="lede" :text="$page.description"></p>
+		<div class="content" :html="$page.content()"></div>
+		<footer class="pager">
+			<a class="next" href="$site.page('getting-started').link()">
+				<small>Next</small>
+				<span>Getting started</span>
+			</a>
+		</footer>
+	</article>
+</main>

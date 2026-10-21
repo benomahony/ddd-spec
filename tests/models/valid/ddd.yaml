@@ -1,0 +1,38 @@
+ddd_spec_version: "0.1"
+id: acme.events
+imports:
+  acme.ledger: ../ledger/ddd.yaml
+  acme.travel: https://example.com/acme/travel/ddd.yaml
+contexts:
+  budgeting: domains/budgeting.yaml
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    classification: { domain: supporting }
+    code: ["src/**", "!src/budgeting/**", "!src/money/**", "!src/postings/**"]
+    language:
+      approved-expense: An expense a manager has accepted for reimbursement.
+    provides:
+      ExpenseApproved: { kind: event, published: true, version: "1" }
+      ExpenseForecast: { kind: query }
+    partners: [forecasting]
+    uses:
+      payments: { model: translate, contracts: [charge.succeeded] }
+    customers: [budgeting]
+  money:
+    purpose: Represent amounts of money the same way everywhere.
+    code: ["src/money/**"]
+    uses:
+      budgeting: { model: share, code: ["src/money/**"] }
+  forecasting:
+    purpose: Predict what each event will end up spending.
+    uses:
+      expenses: { model: translate, contracts: [ExpenseForecast] }
+    partners: [expenses]
+  payments:
+    purpose: Take card payments for us.
+    external: true
+    provides:
+      charge.succeeded: { kind: event, published: true, version: "2024-06-20" }
+implements:
+  acme.ledger/postings:
+    code: ["src/postings/**"]

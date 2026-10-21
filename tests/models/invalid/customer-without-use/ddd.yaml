@@ -1,0 +1,8 @@
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    customers: [budgeting]

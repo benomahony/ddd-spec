@@ -1,0 +1,68 @@
+name: Event Budgeting
+purpose: Control the full committed cost of an event.
+owner: team/events
+status: implemented
+classification:
+  domain: core
+scope:
+  includes:
+    - Allocating event budgets
+    - Reserving funds for event expenditure
+  excludes:
+    - Reimbursing employees
+code:
+  - src/budgeting/**
+language:
+  commitment:
+    means: Funds reserved for approved expenditure, whether or not it has been paid.
+    not: [reservation, hold]
+    from: acme.expenses/claims#approved-expense
+    code: [src/budgeting/commitment.py#Commitment]
+    x-since: "2025"
+  available-budget: The event's approved allocation minus its active commitments.
+  allocation:
+    term: Approved allocation
+    means: The amount finance approved for an event.
+    status: deprecated
+aggregates:
+  event-budget:
+    purpose: Keep an event's allocation and commitments consistent.
+    root: src/budgeting/budget.rs#EventBudget::reserve
+    status: implemented
+    handles: [ReserveFunds]
+    emits: [budgeting.budget-exceeded.v2]
+policies:
+  reserve-approved-expenses:
+    when: acme.expenses/claims#ExpenseApproved
+    then: [ReserveFunds]
+    statement: Every approved expense for an event reserves funds against its budget.
+    status: implemented
+invariants:
+  within-allocation:
+    statement: Active commitments never exceed the approved allocation.
+    status: implemented
+    applies_to: [event-budget]
+    enforced_by: [src/budgeting/budget.rs#EventBudget::reserve]
+    verified_by: [tests/test_budget.py#test_rejects_commitment_above_allocation]
+  event-cost-attribution:
+    statement: Every approved expense for an event counts against that event's budget.
+    status: proposed
+provides:
+  budgeting.budget-exceeded.v2:
+    kind: event
+    means: Commitments for an event reached its allocation.
+    published: true
+    version: "2"
+    defined_in: asyncapi.yaml#/channels/budgetExceeded
+  ReserveFunds:
+    kind: command
+uses:
+  acme.expenses/claims:
+    model: translate
+    contracts: [ExpenseApproved@1]
+    x-adapter: src/budgeting/claims_adapter.py
+  ledger:
+    model: share
+    code: [src/money/**]
+customers: [reporting]
+partners: [ledger]

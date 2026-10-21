@@ -1,0 +1,132 @@
+---
+.title = "Getting started",
+.description = "Model one context, link it to the code, and grow the model from there.",
+.date = .date("2026-10-20T00:00:05"),
+.layout = "page.shtml",
+---
+
+This walks through modelling one part of a repository, an event platform's budgeting, from an empty file to two contexts that depend on each other. Each step is small, and each is useful on its own: a model never has to be complete to be worth having.
+
+# [Start with one context]($heading.id('one-context'))
+
+Create `ddd.yaml` at the root of the repository. It needs the specification's version, an id unique across your organisation, and at least one context with its purpose. Say which files implement it, too, so a person or an agent can tell which context a file belongs to:
+
+```yaml
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    code: ["src/budgeting/**"]
+```
+
+The first line points editors running the YAML language server at the schema, so they complete fields and flag mistakes as you type. Check a file from the command line, or in CI, with any JSON Schema validator:
+
+```console
+$ uvx --with rfc3986-validator check-jsonschema --schemafile https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json ddd.yaml
+ok -- validation done
+```
+
+Leave out the purpose and the schema says so:
+
+```console
+Schema validation errors were encountered.
+  ddd.yaml::$.contexts.budgeting: 'purpose' is a required property
+```
+
+# [Write down its words]($heading.id('language'))
+
+The most valuable thing a model records is what the context's words mean, because that is what a person or an agent new to the code gets wrong first. Give each term a definition, and list the words that must not stand in for it:
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    code: ["src/budgeting/**"]
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure, whether or not it has been paid.
+        not: [hold]
+      available-budget: The event's approved allocation minus its active commitments.
+```
+
+`not` is a promise about the code. Say the budget keeps its commitments like this:
+
+```python
+class EventBudget:
+    def __init__(self, allocation: int) -> None:
+        self.allocation = allocation
+        self.holds: list[int] = []
+
+    def reserve(self, amount: int) -> None:
+        if sum(self.holds) + amount > self.allocation:
+            raise ValueError("the commitment would take the event over its allocation")
+        self.holds.append(amount)
+```
+
+`self.holds` says hold where the context says commitment, which breaks the rule [`avoided-word`]($link.page('checks').ref('avoided-word')). A tool that checks the rule reports it; renaming the field to `self.commitments` brings the code back to the context's language.
+
+# [Record the rules that matter]($heading.id('invariants'))
+
+An invariant is a rule every change must preserve. Record it with an honest status: `implemented` says the code keeps it, so link the code that does, and the test that shows it:
+
+```yaml
+    invariants:
+      within-allocation:
+        statement: Active commitments never exceed the approved allocation.
+        status: implemented
+        enforced_by: [src/budgeting/budget.py#EventBudget.reserve]
+        verified_by: [tests/test_budget.py#test_rejects_commitment_above_allocation]
+```
+
+Without those links, the invariant breaks [`implemented-without-evidence`]($link.page('checks').ref('implemented-without-evidence')): a claim with nothing a reader can check. A rule nobody has implemented yet is still worth recording, as `proposed`.
+
+# [Read the model before changing a file]($heading.id('before-a-change'))
+
+Everything a person or an agent needs before changing `src/budgeting/budget.py` is now in one place: the context whose `code` includes the file, what its words mean, which words to avoid, and which invariants the change must keep true. The [modelling guide]($link.page('guide').ref('agents')) has instructions to give coding agents so they read it.
+
+# [Add a second context]($heading.id('dependencies'))
+
+As the model grows, move each context into a file of its own and list it in the manifest. Here budgeting reacts to expenses that another context approves:
+
+```yaml
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting: domains/budgeting.yaml
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    code: ["src/expenses/**"]
+    provides:
+      ExpenseApproved: { kind: event, published: true, version: "1" }
+```
+
+```yaml
+# domains/budgeting.yaml
+# yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
+purpose: Control the full committed cost of an event.
+code: ["src/budgeting/**"]
+provides:
+  ReserveFunds: { kind: command }
+uses:
+  expenses:
+    model: translate
+    contracts: [ExpenseApproved@1]
+policies:
+  reserve-approved-expenses:
+    when: expenses#ExpenseApproved
+    then: [ReserveFunds]
+```
+
+Expenses owns `ExpenseApproved`, so it is upstream, and it has published the event at version 1: a promise that it changes only by a new version. Budgeting says how it treats that model, `translate` into its own words, which version it was built against, and what it does when the event arrives.
+
+These facts are what the rules across contexts check. Had expenses not published the event, budgeting would break [`unpublished-contract`]($link.page('checks').ref('unpublished-contract')). When expenses moves the event to version 2, every context still pinned to version 1 breaks [`outdated-contract`]($link.page('checks').ref('outdated-contract')), which is exactly the list of contexts to update.
+
+# [Next]($heading.id('next'))
+
+* The [modelling guide]($link.page('guide')) covers choosing contexts, connecting repositories, external systems, and keeping a model true with agents and CI.
+* The [specification]($link.page('specification')) defines every field and rule.
+* The [checks]($link.page('checks')) page shows every rule with a model that breaks it.

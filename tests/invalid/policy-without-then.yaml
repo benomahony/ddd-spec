@@ -1,0 +1,4 @@
+purpose: Control the full committed cost of an event.
+policies:
+  reserve:
+    when: expenses#ExpenseApproved

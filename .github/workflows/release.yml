@@ -1,0 +1,53 @@
+name: Release
+
+# When CI passes on main, each version in spec/ that has no release yet is released as v<version>,
+# with its text and schema attached. A released version's folder never changes, which CI checks.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Releases queue rather than race, so a version is never released twice.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # A release by hand hasn't been through CI yet; one after CI on main has.
+  test:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: test
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' && needs.test.result == 'success' ||
+       github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.COMMIT }}
+          fetch-depth: 0
+      - name: Release each version that has no release yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for folder in spec/v*/; do
+            version=${folder#spec/}
+            version=${version%/}
+            if git rev-parse -q --verify "refs/tags/$version" > /dev/null; then
+              continue
+            fi
+            gh release create "$version" "${folder}ddd.schema.json" "${folder}spec.md" \
+              --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --title "ddd-spec ${version#v}" \
+              --notes "The text and schema of ddd-spec ${version#v}. Files written against it point at https://benomahony.github.io/ddd-spec/$version/ddd.schema.json, which never changes."
+          done

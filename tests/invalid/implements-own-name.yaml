@@ -1,0 +1,7 @@
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting: domains/budgeting.yaml
+implements:
+  budgeting:
+    code: [src/**]

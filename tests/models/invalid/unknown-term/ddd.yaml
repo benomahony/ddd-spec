@@ -1,0 +1,13 @@
+ddd_spec_version: "0.1"
+id: acme.events
+contexts:
+  budgeting:
+    purpose: Control the full committed cost of an event.
+    language:
+      commitment:
+        means: Funds reserved for approved expenditure.
+        from: expenses#claim
+  expenses:
+    purpose: Approve and reimburse what employees spend.
+    language:
+      approved-expense: An expense a manager has accepted for reimbursement.

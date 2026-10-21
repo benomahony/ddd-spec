@@ -1,0 +1,4 @@
+purpose: Control the full committed cost of an event.
+invariants:
+  within-allocation:
+    statement: Active commitments never exceed the approved allocation.

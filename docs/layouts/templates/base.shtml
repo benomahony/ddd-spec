@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head id="head">
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title :text="$page.title.suffix(' · ddd-spec')"></title>
+		<meta name="description" content="ddd-spec: from whiteboard to model, a domain model written down next to the code">
+		<link rel="stylesheet" href="$site.asset('style.css').link()">
+		<super>
+	</head>
+	<body>
+		<svg class="filters" width="0" height="0" aria-hidden="true" focusable="false">
+			<filter id="sketch"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="1" seed="3"/><feDisplacementMap in="SourceGraphic" scale="5"/></filter>
+			<filter id="sketch-again"><feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="1" seed="11"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
+		</svg>
+		<div class="layout">
+			<nav class="sidebar">
+				<a class="brand" href="$site.page('').link()">
+					<span class="logo">ddd-spec</span>
+					<span class="tagline">from whiteboard to model</span>
+				</a>
+				<ul>
+					<li><a href="$site.page('').link()">Introduction</a></li>
+					<li><a href="$site.page('getting-started').link()">Getting started</a></li>
+					<li><a href="$site.page('guide').link()">Modelling guide</a></li>
+					<li><a href="$site.page('specification').link()">Specification</a></li>
+					<li><a href="$site.page('checks').link()">Checks</a></li>
+				</ul>
+				<div class="external">
+					<a href="https://github.com/benomahony/ddd-spec">Source</a>
+					<a href="https://github.com/benomahony/ddd-spec/tree/main/spec">Schemas</a>
+					<a href="https://github.com/benomahony/ddd-spec/releases">Releases</a>
+				</div>
+			</nav>
+			<main id="main">
+				<super>
+			</main>
+		</div>
+	</body>
+</html>

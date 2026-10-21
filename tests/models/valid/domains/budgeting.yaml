@@ -1,0 +1,52 @@
+purpose: Control the full committed cost of an event.
+classification: { domain: core }
+scope:
+  includes: [Allocating event budgets, Reserving funds for event expenditure]
+  excludes: [Reimbursing employees]
+code: ["src/budgeting/**", "src/money/**"]
+language:
+  commitment:
+    means: Funds reserved for approved expenditure, whether or not it has been paid.
+    not: [hold]
+    from: expenses#approved-expense
+    code: [src/budgeting/commitment.py#Commitment]
+  available-budget: The event's approved allocation minus its active commitments.
+  amount:
+    means: A quantity of money in one currency.
+    code: [src/money/amount.rs#Amount::add]
+aggregates:
+  event-budget:
+    root: src/budgeting/budget.py#EventBudget
+    handles: [ReserveFunds]
+    emits: [BudgetExceeded]
+policies:
+  reserve-approved-expenses:
+    when: expenses#ExpenseApproved
+    then: [ReserveFunds]
+    statement: Every approved expense for an event reserves funds against its budget.
+invariants:
+  within-allocation:
+    statement: Active commitments never exceed the approved allocation.
+    status: implemented
+    applies_to: [event-budget]
+    enforced_by: [src/budgeting/budget.py#EventBudget.reserve]
+    verified_by: [checks/budget_checks.py#rejects_commitment_above_allocation]
+  event-cost-attribution:
+    statement: Every approved expense for an event counts against that event's budget.
+    status: proposed
+provides:
+  BudgetExceeded: { kind: event, published: true, version: "1" }
+  ReserveFunds: { kind: command }
+uses:
+  expenses:
+    model: translate
+    contracts: [ExpenseApproved@1]
+  money:
+    model: share
+    code: ["src/money/**"]
+  acme.ledger/postings:
+    model: translate
+    contracts: [PostingRecorded]
+  acme.travel/bookings:
+    model: conform
+    contracts: [TripBooked]
