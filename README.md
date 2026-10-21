@@ -2,7 +2,7 @@
 
 A domain model that lives next to the code: which bounded contexts a repository holds, what their words mean, which rules every change must preserve, and how the contexts depend on each other. People, coding agents and tools all read the same files.
 
-![A context map: budgeting, in acme.events, translates the ExpenseApproved event that claims, in acme.expenses, publishes; claims translates Stripe's charge.succeeded](docs/assets/diagrams/context-map.svg "A context map, read from the files: each arrow is a context using a contract another owns")
+![On the left, a whiteboard sketch: budgeting, claims and stripe as hand-drawn boxes, a questioning arrow labelled approved expense, and a sticky note saying a commitment is money set aside, paid or not. An arrow leads to the same model, written down in ddd.yaml: budgeting's language defines commitment, and budgeting uses claims, translating ExpenseApproved version 1](docs/assets/diagrams/whiteboard-to-model.svg "From the whiteboard to the repository: the sketch, written down as a model that people, agents and tools can check")
 
 ```yaml
 # ddd.yaml

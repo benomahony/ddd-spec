@@ -5,7 +5,7 @@
 .layout = "index.shtml",
 ---
 
-[A context map, read from the files: each arrow is a context using a contract another owns](<$image.siteAsset('diagrams/context-map.svg').alt("A context map: budgeting, in acme.events, translates the ExpenseApproved event that claims, in acme.expenses, publishes; claims translates Stripe's charge.succeeded")>)
+[From the whiteboard to the repository: the sketch, written down as a model that people, agents and tools can check](<$image.siteAsset('diagrams/whiteboard-to-model.svg').alt("On the left, a whiteboard sketch: budgeting, claims and stripe as hand-drawn boxes, a questioning arrow labelled approved expense, and a sticky note saying a commitment is money set aside, paid or not. An arrow leads to the same model, written down in ddd.yaml: budgeting's language defines commitment, and budgeting uses claims, translating ExpenseApproved version 1")>)
 
 ```yaml
 # ddd.yaml

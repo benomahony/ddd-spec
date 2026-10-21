@@ -2,7 +2,7 @@
 .title = "Specification 0.1",
 .description = "Every file, field and rule of ddd-spec, normatively.",
 .date = .date("2026-10-20T00:00:03"),
-.layout = "page.shtml",
+.layout = "structured.shtml",
 ---
 
 

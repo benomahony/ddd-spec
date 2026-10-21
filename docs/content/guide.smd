@@ -128,13 +128,18 @@ Only those files may belong to both contexts. Keep a kernel small: it ties the t
 
 # [Many repositories]($heading.id('repositories'))
 
-Each repository has its own manifest, with an id unique across the organisation. A manifest refers to another's contexts by their full id, `<manifest id>/<context>`, and lists every manifest it refers to in `imports`:
+Each repository has its own manifest, with an id unique across the organisation. A manifest refers to another's contexts by their full id, `<manifest id>/<context>`, and lists every manifest it refers to in `imports`.
+
+[A context map, read from three repositories' files: each arrow is a context using a contract another owns](<$image.siteAsset('diagrams/context-map.svg').alt("A context map across three repositories: budgeting, in acme.events, translates the ExpenseApproved event that claims, in acme.expenses, publishes at version 1; claims translates the charge.succeeded event of Stripe, an external system described in acme.externals")>)
+
+Here is the manifest for the first of them:
 
 ```yaml
 ddd_spec_version: "0.1"
 id: acme.events
 imports:
   acme.expenses: https://raw.githubusercontent.com/acme/expenses/main/ddd.yaml
+  acme.externals: https://raw.githubusercontent.com/acme/externals/main/ddd.yaml
   acme.ledger: ../ledger/ddd.yaml
 contexts:
   budgeting: domains/budgeting.yaml
