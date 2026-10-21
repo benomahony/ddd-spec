@@ -2,6 +2,8 @@
 
 A domain model that lives next to the code: which bounded contexts a repository holds, what their words mean, which rules every change must preserve, and how the contexts depend on each other. People, coding agents and tools all read the same files.
 
+![A context map: budgeting, in acme.events, translates the ExpenseApproved event that claims, in acme.expenses, publishes; claims translates Stripe's charge.succeeded](docs/assets/diagrams/context-map.svg "A context map, read from the files: each arrow is a context using a contract another owns")
+
 ```yaml
 # ddd.yaml
 # yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
@@ -78,6 +80,8 @@ This repository is the specification: its text, its schema, examples, and the si
 `tests/valid` holds files the schema must accept and `tests/invalid` files it must reject, each with exactly one fault. `tests/models` is a conformance suite for tools that check the rules beyond the schema: `valid` is a repository whose model agrees with itself and its code, and each directory in `invalid` breaks only the rule it is named after. Every rule in the specification has one.
 
 The [site](https://benomahony.github.io/ddd-spec) is built with [Zine](https://zine-ssg.io). Its home page comes from this README, its specification and checks pages from `spec/` and `tests/models`, and its guides from `docs/content`. After changing any of them, run `python3 docs/sync.py` to regenerate the pages, and `zine` in `docs` to preview them.
+
+The diagrams are drawn in [Excalidraw](https://excalidraw.com): each `.svg` in `docs/assets/diagrams` has its `.excalidraw` source beside it. Open the source there, change it, and export it over the `.svg` with a transparent background. Headings use Excalidraw's handwriting font, [Excalifont](https://plus.excalidraw.com/excalifont), under the SIL Open Font License; its licence is in `docs/assets/fonts`.
 
 ## License
 

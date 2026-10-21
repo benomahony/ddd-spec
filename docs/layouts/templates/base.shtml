@@ -9,6 +9,10 @@
 		<super>
 	</head>
 	<body>
+		<svg class="filters" width="0" height="0" aria-hidden="true" focusable="false">
+			<filter id="sketch"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="1" seed="3"/><feDisplacementMap in="SourceGraphic" scale="5"/></filter>
+			<filter id="sketch-again"><feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="1" seed="11"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
+		</svg>
 		<div class="layout">
 			<nav class="sidebar">
 				<a class="brand" href="$site.page('').link()">

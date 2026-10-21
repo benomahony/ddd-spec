@@ -7,5 +7,8 @@
     .content_dir_path = "content",
     .layouts_dir_path = "layouts",
     .assets_dir_path = "assets",
-    .static_assets = [],
+    .static_assets = [
+        "fonts/Excalifont-Regular.woff2",
+        "fonts/Excalifont-OFL.txt",
+    ],
 }),

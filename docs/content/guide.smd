@@ -101,6 +101,8 @@ Publish a contract, with a version, when other contexts may rely on it. From the
 
 A context lists each context it depends on in `uses`, with how it treats that context's model:
 
+[Conform, translate or share: the three values of model](<$image.siteAsset('diagrams/models.svg').alt("Three ways to use another context's model: conform adopts it as it is; translate turns it into the context's own words through a translation layer; share keeps a kernel of code the two contexts own together")>)
+
 | Model | Choose it when |
 |---|---|
 | `translate` | the other model's words or shape differ from yours, so a layer turns them into your own. This is the usual choice, and the safe one for a core context |

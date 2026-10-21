@@ -31,6 +31,7 @@ def lift(lines: list[str], page: str) -> list[str]:
             line = heading(line[1:])
         elif not fenced:
             line = re.sub(r"\]\(#([a-z0-9-]+)\)", rf"]($link.page('{page}').ref('\1'))", line)
+            line = re.sub(r'!\[(.*?)\]\(docs/assets/(\S+) "(.*?)"\)', r"""[\3](<$image.siteAsset('\2').alt("\1")>)""", line)
         body.append(line)
     return body
 

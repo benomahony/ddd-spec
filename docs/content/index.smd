@@ -5,6 +5,8 @@
 .layout = "index.shtml",
 ---
 
+[A context map, read from the files: each arrow is a context using a contract another owns](<$image.siteAsset('diagrams/context-map.svg').alt("A context map: budgeting, in acme.events, translates the ExpenseApproved event that claims, in acme.expenses, publishes; claims translates Stripe's charge.succeeded")>)
+
 ```yaml
 # ddd.yaml
 # yaml-language-server: $schema=https://benomahony.github.io/ddd-spec/v0.1/ddd.schema.json
